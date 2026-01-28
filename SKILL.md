@@ -6,11 +6,7 @@ author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu"]
 platforms: ["windows", "linux", "macos", "wsl2"]
-metadata:
-  clawdbot:
-    emoji: "🗣️"
-    requires:
-      bins: ["ffmpeg"]
+metadata: {"moltbot":{"emoji":"🗣️","requires":{"bins":["ffmpeg"]},"install":[{"id":"brew-ffmpeg","kind":"brew","formula":"ffmpeg","bins":["ffmpeg"],"label":"Install ffmpeg (brew)"}]}}
 ---
 
 # Faster-Whisper
