@@ -35,23 +35,23 @@ unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
 
 ### Option 2: Install from MoltHub
 
-**Via Web UI:**
-Go to https://clawdhub.com/ThePlasmak/faster-whisper and download the zip.
-
-**Via CLI:**
-First, install the ClawdHub CLI (if you haven't already):
+**Via CLI** (no installation required):
 
 ```bash
-npm install -g clawdhub
-```
+# Using npx (npm)
+npx molthub@latest install faster-whisper
 
-Then install the skill:
+# Using pnpm
+pnpm dlx molthub@latest install faster-whisper
 
-```bash
-clawdhub install faster-whisper
+# Using bun
+bunx molthub@latest install faster-whisper
 ```
 
 This downloads and installs the skill into your default skills directory (`~/clawd/moltbot/workspace/skills/` or similar).
+
+**Via Web UI:**
+Go to https://clawdhub.com/ThePlasmak/faster-whisper and download the zip.
 
 ## Setup
 
