@@ -5,10 +5,10 @@ A Moltbot skill for speech-to-text that uses faster-whisper—a CTranslate2 reim
 ## Features
 
 - **~4-6x faster** than OpenAI's original Whisper (same model weights, CTranslate2 backend)
-- **~20x realtime** with GPU — transcribe 10 min of audio in ~30 sec
+- **~20x realtime** with GPU—transcribe 10 min of audio in ~30 sec
 - **Distilled models** available (~6x faster again with <1% WER loss)
 - **Word-level timestamps**
-- **Voice activity detection (VAD)** — removes silence automatically
+- **Voice activity detection (VAD)**—removes silence automatically
 - **Multilingual support** (100+ languages)
 - **Quantization** for CPU efficiency
 - **GPU acceleration** (NVIDIA CUDA)
@@ -85,7 +85,7 @@ Run the transcription script directly:
 | Option | Short | Description |
 |--------|-------|-------------|
 | `--model` | `-m` | Model name (default: `distil-large-v3`) |
-| `--language` | `-l` | Language code (e.g., `en`, `es`, `fr`) — auto-detects if omitted |
+| `--language` | `-l` | Language code (e.g., `en`, `es`, `fr`)—auto-detects if omitted |
 | `--word-timestamps` | | Include word-level timestamps |
 | `--beam-size` | | Beam search size (default: 5, higher = more accurate but slower) |
 | `--vad` | | Enable voice activity detection (removes silence) |
@@ -158,7 +158,7 @@ See `SKILL.md` for full model list and recommendations.
 
 ### CUDA Not Detected
 
-**Symptom:** Script says "CUDA not available — using CPU (this will be slow!)"
+**Symptom:** Script says "CUDA not available—using CPU (this will be slow!)"
 
 **Solutions:**
 
@@ -351,7 +351,7 @@ See `SKILL.md` for full model list and recommendations.
 ### Still Having Issues?
 
 1. **Check the logs:** Run without `--quiet` to see detailed error messages
-2. **Ask Moltbot:** Paste the error — it can usually diagnose faster-whisper or installation issues
+2. **Ask Moltbot:** Paste the error—it can usually diagnose faster-whisper or installation issues
 3. **Open an issue:** [GitHub Issues](https://github.com/ThePlasmak/faster-whisper/issues)
 4. **Include:**
    - Platform (Windows/Linux/macOS/WSL2)
