@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.coverage
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.ogg

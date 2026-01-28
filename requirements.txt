@@ -1,0 +1,6 @@
+# Core dependency
+faster-whisper>=1.0.0
+
+# PyTorch with CUDA is installed separately by setup.sh
+# For manual GPU install:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu121

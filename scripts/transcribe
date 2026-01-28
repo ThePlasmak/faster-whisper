@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Wrapper script that activates venv and runs the Python transcriber
+# Auto-runs setup if venv doesn't exist
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_DIR="$(dirname "$SCRIPT_DIR")"
+VENV_PYTHON="$SKILL_DIR/.venv/bin/python"
+SETUP_SCRIPT="$SKILL_DIR/setup.sh"
+
+# Auto-setup if venv doesn't exist
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "🎙️ faster-whisper not set up yet. Running setup..." >&2
+    echo "" >&2
+    
+    if [ -f "$SETUP_SCRIPT" ]; then
+        bash "$SETUP_SCRIPT"
+        echo "" >&2
+        
+        # Check if setup succeeded
+        if [ ! -f "$VENV_PYTHON" ]; then
+            echo "❌ Setup failed. Please check errors above." >&2
+            exit 1
+        fi
+    else
+        echo "❌ Setup script not found: $SETUP_SCRIPT" >&2
+        exit 1
+    fi
+fi
+
+exec "$VENV_PYTHON" "$SCRIPT_DIR/transcribe.py" "$@"
