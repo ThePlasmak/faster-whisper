@@ -17,7 +17,7 @@ A Moltbot skill for speech-to-text that uses faster-whisper — a CTranslate2 re
 
 ### Option 1: Install from MoltHub
 
-The easiest way to install this skill into Moltbot:
+An easy way to install this skill into Moltbot:
 
 ```bash
 clawdhub install faster-whisper
