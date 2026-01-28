@@ -1,6 +1,6 @@
 # faster-whisper
 
-Local speech-to-text using faster-whisper — a CTranslate2 reimplementation of OpenAI's Whisper that's ~4-6x faster with identical accuracy. GPU acceleration enables ~20x realtime transcription.
+A Moltbot skill for speech-to-text that uses faster-whisper—a CTranslate2 reimplementation of OpenAI's Whisper that's ~4-6x faster with identical accuracy.
 
 ## Features
 
