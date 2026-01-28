@@ -1,6 +1,8 @@
 # faster-whisper
 
-A Moltbot skill for speech-to-text that uses faster-whisper — a CTranslate2 reimplementation of OpenAI's Whisper that's ~4-6x faster with identical accuracy.
+A Moltbot skill that uses faster-whisper to transcribe audio more quickly.
+
+faster-whisper is superior to a OpenAI's Whisper — it's a CTranslate2 reimplementation that's ~4-6x faster with identical accuracy.
 
 ## Features
 
@@ -15,25 +17,7 @@ A Moltbot skill for speech-to-text that uses faster-whisper — a CTranslate2 re
 
 ## Installation
 
-### Option 1: Download from GitHub Releases
-
-1. Go to [Releases](https://github.com/ThePlasmak/faster-whisper/releases)
-2. Download the latest `faster-whisper-X.X.X.zip`
-3. Extract it to your Moltbot skills folder:
-   - **Default location**: `~/clawd/moltbot/workspace/skills/faster-whisper`
-   - Or wherever your Moltbot workspace is configured
-
-```bash
-# Example
-cd ~/clawd/moltbot/workspace/skills/
-unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
-```
-
-**If you're lazy:** You can also ask Moltbot to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in chat.
-
-**Note:** The release zip excludes repository files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
-
-### Option 2: Install from MoltHub
+### Option 1: Install from MoltHub
 
 **Via CLI** (no installation required):
 
@@ -52,6 +36,24 @@ This downloads and installs the skill into your default skills directory (`~/cla
 
 **Via Web UI:**
 Go to https://clawdhub.com/ThePlasmak/faster-whisper and download the zip.
+
+### Option 2: Download from GitHub Releases
+
+1. Go to [Releases](https://github.com/ThePlasmak/faster-whisper/releases)
+2. Download the latest `faster-whisper-X.X.X.zip`
+3. Extract it to your Moltbot skills folder:
+   - **Default location**: `~/clawd/moltbot/workspace/skills/faster-whisper`
+   - Or wherever your Moltbot workspace is configured
+
+```bash
+# Example
+cd ~/clawd/moltbot/workspace/skills/
+unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
+```
+
+**If you're lazy:** You can also ask Moltbot to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in chat.
+
+**Note:** The release zip excludes repository files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
 
 ## Setup
 
