@@ -15,17 +15,7 @@ A Moltbot skill for speech-to-text that uses faster-whisper — a CTranslate2 re
 
 ## Installation
 
-### Option 1: Install from MoltHub
-
-An easy way to install this skill into Moltbot:
-
-```bash
-clawdhub install faster-whisper
-```
-
-This downloads and installs the skill into your default skills directory (`~/clawd/moltbot/workspace/skills/` or similar).
-
-### Option 2: Download from GitHub Releases
+### Option 1: Download from GitHub Releases
 
 1. Go to [Releases](https://github.com/ThePlasmak/faster-whisper/releases)
 2. Download the latest `faster-whisper-X.X.X.zip`
@@ -39,7 +29,29 @@ cd ~/clawd/moltbot/workspace/skills/
 unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
 ```
 
+**If you're lazy:** You can also ask Moltbot to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in chat.
+
 **Note:** The release zip excludes repository files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
+
+### Option 2: Install from MoltHub
+
+**Via Web UI:**
+Go to https://clawdhub.com/ThePlasmak/faster-whisper and download the zip.
+
+**Via CLI:**
+First, install the ClawdHub CLI (if you haven't already):
+
+```bash
+npm install -g clawdhub
+```
+
+Then install the skill:
+
+```bash
+clawdhub install faster-whisper
+```
+
+This downloads and installs the skill into your default skills directory (`~/clawd/moltbot/workspace/skills/` or similar).
 
 ## Setup
 
