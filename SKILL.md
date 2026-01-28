@@ -1,6 +1,6 @@
 ---
 name: faster-whisper
-description: Local speech-to-text using faster-whisper (~6x faster than OpenAI Whisper). Supports standard and distilled models with word-level timestamps.
+description: Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. Supports standard and distilled models with word-level timestamps.
 version: 1.0.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
@@ -15,7 +15,7 @@ metadata:
 
 # Faster-Whisper
 
-Local speech-to-text using faster-whisper - a reimplementation of OpenAI's Whisper using CTranslate2 for **~4-6x faster inference** with the same accuracy.
+Local speech-to-text using faster-whisper — a CTranslate2 reimplementation of OpenAI's Whisper that runs **4-6x faster** with identical accuracy. With GPU acceleration, expect **~20x realtime** transcription (a 10-minute audio file in ~30 seconds).
 
 ## Setup
 
@@ -194,7 +194,7 @@ done
 ## Performance Notes
 
 - **First run**: Downloads model to `~/.cache/huggingface/` (one-time)
-- **GPU**: Automatically uses CUDA if available (~10-20x faster!)
+- **GPU**: Automatically uses CUDA if available (~10-20x faster)
 - **Quantization**: INT8 used on CPU for ~4x speedup with minimal accuracy loss
 - **Memory**: 
   - `distil-large-v3`: ~2GB RAM / ~1GB VRAM

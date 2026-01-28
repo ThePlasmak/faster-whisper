@@ -1,11 +1,11 @@
 # faster-whisper
 
-Local speech-to-text using faster-whisper — same accuracy as OpenAI Whisper, but ~6x faster with GPU acceleration.
+Local speech-to-text using faster-whisper — a CTranslate2 reimplementation of OpenAI's Whisper that's 4-6x faster with identical accuracy. GPU acceleration enables ~20x realtime transcription.
 
 ## Features
 
-- **~6x faster** than OpenAI's original Whisper
-- **Same accuracy** (uses same model weights)
+- **4-6x faster** than OpenAI's original Whisper (same model weights, CTranslate2 backend)
+- **~20x realtime** with GPU — transcribe 10 min of audio in ~30 sec
 - **Distilled models** available (~6x faster again with <1% WER loss)
 - **Word-level timestamps**
 - **Voice activity detection (VAD)** — removes silence automatically
@@ -60,7 +60,7 @@ Just ask in natural language:
 
 Moltbot will:
 - Pick the right model for your needs
-- Use GPU if available
+- Use the GPU if available
 - Handle errors and suggest fixes
 - Return formatted results
 

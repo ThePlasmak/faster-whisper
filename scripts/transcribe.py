@@ -32,56 +32,66 @@ def main():
     parser = argparse.ArgumentParser(
         description="Transcribe audio with faster-whisper"
     )
-    parser.add_argument("audio", help="Audio file path")
+    parser.add_argument(
+        "audio",
+        metavar="AUDIO_FILE",
+        help="Path to audio file (mp3, wav, m4a, flac, ogg, webm)"
+    )
     parser.add_argument(
         "-m", "--model",
         default="distil-large-v3",
-        help="Model name (default: distil-large-v3)"
+        metavar="NAME",
+        help="Whisper model to use (default: distil-large-v3). Options: tiny, base, small, medium, large-v3, large-v3-turbo, distil-large-v3, distil-medium.en"
     )
     parser.add_argument(
         "-l", "--language",
         default=None,
-        help="Language code (e.g., en, es, fr) - auto-detect if omitted"
+        metavar="CODE",
+        help="Language code, e.g. en, es, fr, zh (auto-detects if omitted)"
     )
     parser.add_argument(
         "--word-timestamps",
         action="store_true",
-        help="Include word-level timestamps"
+        help="Include word-level timestamps in output"
     )
     parser.add_argument(
         "--beam-size",
         type=int,
         default=5,
-        help="Beam search size (default: 5)"
+        metavar="N",
+        help="Beam search size; higher = more accurate but slower (default: 5)"
     )
     parser.add_argument(
         "--vad",
         action="store_true",
-        help="Enable voice activity detection"
+        help="Enable voice activity detection to skip silence"
     )
     parser.add_argument(
         "-j", "--json",
         action="store_true",
-        help="Output as JSON"
+        help="Output full transcript as JSON with segments and metadata"
     )
     parser.add_argument(
         "-o", "--output",
-        help="Save transcript to file"
+        metavar="FILE",
+        help="Write transcript to FILE instead of stdout"
     )
     parser.add_argument(
         "--device",
         default="auto",
-        help="cpu, cuda, or auto (default: auto)"
+        choices=["auto", "cpu", "cuda"],
+        help="Compute device: auto (detect GPU), cpu, or cuda (default: auto)"
     )
     parser.add_argument(
         "--compute-type",
         default="auto",
-        help="int8, float16, float32, or auto (default: auto)"
+        choices=["auto", "int8", "float16", "float32"],
+        help="Quantization: auto, int8 (fast CPU), float16 (GPU), float32 (default: auto)"
     )
     parser.add_argument(
         "-q", "--quiet",
         action="store_true",
-        help="Suppress progress messages"
+        help="Suppress progress and status messages"
     )
 
     args = parser.parse_args()
