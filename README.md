@@ -13,11 +13,39 @@ A Moltbot skill for speech-to-text that uses faster-whisper — a CTranslate2 re
 - **Quantization** for CPU efficiency
 - **GPU acceleration** (NVIDIA CUDA)
 
+## Installation
+
+### Option 1: Install from MoltHub
+
+The easiest way to install this skill into Moltbot:
+
+```bash
+clawdhub install faster-whisper
+```
+
+This downloads and installs the skill into your default skills directory (`~/clawd/moltbot/workspace/skills/` or similar).
+
+### Option 2: Download from GitHub Releases
+
+1. Go to [Releases](https://github.com/ThePlasmak/faster-whisper/releases)
+2. Download the latest `faster-whisper-X.X.X.zip`
+3. Extract it to your Moltbot skills folder:
+   - **Default location**: `~/clawd/moltbot/workspace/skills/faster-whisper`
+   - Or wherever your Moltbot workspace is configured
+
+```bash
+# Example
+cd ~/clawd/moltbot/workspace/skills/
+unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
+```
+
+**Note:** The release zip excludes repository files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
+
 ## Setup
 
 ### Using with Moltbot
 
-If you're using Moltbot, it can guide you through installation automatically.
+If you're using Moltbot, it can guide you through the installation automatically.
 
 **What Moltbot does:**
 
@@ -59,7 +87,6 @@ Just ask in natural language:
 ```
 
 Moltbot will:
-- Pick the right model for your needs
 - Use the GPU if available
 - Handle errors and suggest fixes
 - Return formatted results
