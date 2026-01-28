@@ -4,6 +4,8 @@ description: Local speech-to-text using faster-whisper (~6x faster than OpenAI W
 version: 1.0.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
+tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu"]
+platforms: ["windows", "linux", "macos", "wsl2"]
 metadata:
   clawdbot:
     emoji: "🗣️"

@@ -164,19 +164,27 @@ if (-not $SkipPrereqs) {
     $pythonVersion = & $pythonCmd --version 2>&1
     Write-Host "✓ $pythonVersion" -ForegroundColor Green
     
-    # Check ffmpeg
+    # Check ffmpeg (required)
     if (-not (Test-Command "ffmpeg")) {
-        Write-Host "⚠️  ffmpeg not found" -ForegroundColor Yellow
+        Write-Host "❌ ffmpeg not found (required for audio processing)" -ForegroundColor Red
         
         if ($hasWinget) {
             $installed = Install-WithWinget -PackageId "Gyan.FFmpeg" -FriendlyName "ffmpeg"
             if (-not $installed) {
-                Write-Host "   ffmpeg is optional but recommended for audio format support." -ForegroundColor Yellow
-                Write-Host "   Install manually from https://ffmpeg.org or via: winget install Gyan.FFmpeg" -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "Please install ffmpeg manually:" -ForegroundColor Yellow
+                Write-Host "  Option 1: winget install Gyan.FFmpeg" -ForegroundColor White
+                Write-Host "  Option 2: Download from https://ffmpeg.org" -ForegroundColor White
+                Write-Host ""
+                exit 1
             }
         } else {
-            Write-Host "   ffmpeg is optional but recommended for audio format support." -ForegroundColor Yellow
-            Write-Host "   Install from https://ffmpeg.org or via: winget install Gyan.FFmpeg" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "Please install ffmpeg:" -ForegroundColor Yellow
+            Write-Host "  Option 1: winget install Gyan.FFmpeg" -ForegroundColor White
+            Write-Host "  Option 2: Download from https://ffmpeg.org" -ForegroundColor White
+            Write-Host ""
+            exit 1
         }
     } else {
         Write-Host "✓ ffmpeg found" -ForegroundColor Green

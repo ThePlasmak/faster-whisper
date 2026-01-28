@@ -38,32 +38,56 @@ fi
 
 echo "✓ Python $PYTHON_VERSION"
 
-# Check for ffmpeg
+# Check for ffmpeg (required)
 if ! command -v ffmpeg &> /dev/null; then
-    echo "⚠️  ffmpeg not found. Install it for audio format support:"
+    echo "❌ ffmpeg not found (required for audio processing)"
+    echo ""
+    echo "Install ffmpeg:"
     if [ "$OS_TYPE" = "macos" ]; then
         echo "   brew install ffmpeg"
     else
         echo "   Ubuntu/Debian: sudo apt install ffmpeg"
         echo "   Fedora: sudo dnf install ffmpeg"
+        echo "   Arch: sudo pacman -S ffmpeg"
     fi
+    echo ""
+    exit 1
 fi
+
+echo "✓ ffmpeg found"
 
 # Detect GPU/acceleration availability
 HAS_CUDA=false
 HAS_APPLE_SILICON=false
 GPU_NAME=""
+NVIDIA_SMI=""
 
 if [ "$OS_TYPE" = "linux" ]; then
     # Check for NVIDIA GPU (Linux/WSL)
+    # Try nvidia-smi in PATH first
     if command -v nvidia-smi &> /dev/null; then
-        HAS_CUDA=true
-        GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "NVIDIA GPU")
-    elif [ -f /usr/lib/wsl/lib/nvidia-smi ]; then
-        # WSL2 with CUDA
-        HAS_CUDA=true
-        GPU_NAME=$(/usr/lib/wsl/lib/nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || echo "NVIDIA GPU (WSL2)")
-        echo "✓ WSL2 CUDA detected"
+        NVIDIA_SMI="nvidia-smi"
+    else
+        # WSL2: nvidia-smi is in /usr/lib/wsl/lib/ (not in PATH by default)
+        # Check if we're in WSL2 and look for nvidia-smi there
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+            # We're in WSL2 - search for nvidia-smi in WSL lib directories
+            for wsl_smi in /usr/lib/wsl/lib/nvidia-smi /usr/lib/wsl/drivers/*/nvidia-smi; do
+                if [ -f "$wsl_smi" ]; then
+                    NVIDIA_SMI="$wsl_smi"
+                    echo "✓ WSL2 detected"
+                    break
+                fi
+            done
+        fi
+    fi
+    
+    # If we found nvidia-smi, get GPU info
+    if [ -n "$NVIDIA_SMI" ]; then
+        GPU_NAME=$($NVIDIA_SMI --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+        if [ -n "$GPU_NAME" ]; then
+            HAS_CUDA=true
+        fi
     fi
 elif [ "$OS_TYPE" = "macos" ]; then
     # Check for Apple Silicon

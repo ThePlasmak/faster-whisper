@@ -148,11 +148,215 @@ Run the transcription script directly:
 
 **distil-large-v3** (756MB download)
 
-- 6x faster than large-v3
-- Within 1% accuracy of full model
+- ~6x faster than large-v3
+- Within ~1% accuracy of full model
 - Best balance of speed and accuracy
 
 See `SKILL.md` for full model list and recommendations.
+
+## Troubleshooting
+
+### CUDA Not Detected
+
+**Symptom:** Script says "CUDA not available — using CPU (this will be slow!)"
+
+**Solutions:**
+
+1. **Check NVIDIA drivers are installed:**
+   ```bash
+   # Windows/Linux/WSL2
+   nvidia-smi
+   ```
+   If this fails, install/update your [NVIDIA drivers](https://www.nvidia.com/download/index.aspx)
+
+2. **WSL2 users:** Install CUDA drivers on **Windows**, not inside WSL2
+   - Follow: [NVIDIA CUDA on WSL2 Guide](https://docs.nvidia.com/cuda/wsl-user-guide/)
+
+3. **Reinstall PyTorch with CUDA:**
+   ```bash
+   # Linux/macOS/WSL2
+   .venv/bin/pip install torch --index-url https://download.pytorch.org/whl/cu121
+   
+   # Windows
+   .venv\Scripts\pip install torch --index-url https://download.pytorch.org/whl/cu121
+   ```
+
+4. **Verify CUDA is working:**
+   ```bash
+   # Linux/macOS/WSL2
+   .venv/bin/python -c "import torch; print(torch.cuda.is_available())"
+   
+   # Windows
+   .venv\Scripts\python -c "import torch; print(torch.cuda.is_available())"
+   ```
+
+### Out of Memory Errors
+
+**Symptom:** `RuntimeError: CUDA out of memory` or `OutOfMemoryError`
+
+**Solutions:**
+
+1. **Use a smaller model:**
+   ```bash
+   # Try distil-medium instead of distil-large-v3
+   ./scripts/transcribe audio.mp3 --model distil-medium.en
+   ```
+
+2. **Use int8 quantization (reduces VRAM by ~4x):**
+   ```bash
+   ./scripts/transcribe audio.mp3 --compute-type int8
+   ```
+
+3. **Fall back to CPU for large files:**
+   ```bash
+   ./scripts/transcribe audio.mp3 --device cpu
+   ```
+
+4. **Split long audio files into smaller chunks** (5-10 min segments)
+
+**VRAM Requirements:**
+| Model | float16 | int8 |
+|-------|---------|------|
+| distil-large-v3 | ~2GB | ~1GB |
+| large-v3 | ~5GB | ~2GB |
+| medium | ~3GB | ~1.5GB |
+| small | ~2GB | ~1GB |
+
+### ffmpeg Not Found
+
+**Symptom:** `FileNotFoundError: ffmpeg not found`
+
+**Solutions:**
+
+1. **Windows:** Re-run setup script (auto-installs via winget)
+   ```powershell
+   .\setup.ps1
+   ```
+
+2. **Linux:**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt install ffmpeg
+   
+   # Fedora/RHEL
+   sudo dnf install ffmpeg
+   
+   # Arch
+   sudo pacman -S ffmpeg
+   ```
+
+3. **macOS:**
+   ```bash
+   brew install ffmpeg
+   ```
+
+4. **Verify installation:**
+   ```bash
+   ffmpeg -version
+   ```
+
+### Model Download Fails
+
+**Symptom:** `HTTPError`, `ConnectionError`, or timeout during first run
+
+**Solutions:**
+
+1. **Check internet connection**
+
+2. **Retry with increased timeout:**
+   - Models download automatically on first use
+   - Download sizes: 75MB (tiny) to 3GB (large-v3)
+
+3. **Use a VPN if Hugging Face is blocked** in your region
+
+4. **Manual download:**
+   ```python
+   from faster_whisper import WhisperModel
+   model = WhisperModel("distil-large-v3", device="cpu")
+   ```
+
+### Very Slow Transcription
+
+**Symptom:** Transcription takes longer than the audio duration
+
+**Expected speeds:**
+- **GPU (CUDA):** ~20-30x realtime (30 min audio → ~1-2 min)
+- **Apple Silicon (CPU):** ~2-5x realtime (30 min audio → ~6-15 min)
+- **Intel CPU:** ~0.5-1x realtime (30 min audio → 30-60 min)
+
+**Solutions:**
+
+1. **Ensure GPU is being used:**
+   ```bash
+   # Look for "Loading model: ... (cuda, float16) on NVIDIA ..."
+   ./scripts/transcribe audio.mp3
+   ```
+
+2. **Use a smaller/distilled model:**
+   ```bash
+   ./scripts/transcribe audio.mp3 --model distil-small.en
+   ```
+
+3. **Specify language (skips auto-detection):**
+   ```bash
+   ./scripts/transcribe audio.mp3 --language en
+   ```
+
+4. **Reduce beam size:**
+   ```bash
+   ./scripts/transcribe audio.mp3 --beam-size 1
+   ```
+
+### Audio Format Issues
+
+**Symptom:** `Error: Unsupported format` or transcription produces garbage
+
+**Solutions:**
+
+1. **Supported formats:** MP3, WAV, M4A, FLAC, OGG, WebM
+   - Most common formats work via ffmpeg
+
+2. **Convert problematic formats:**
+   ```bash
+   ffmpeg -i input.xyz -ar 16000 output.mp3
+   ```
+
+3. **Check audio isn't corrupted:**
+   ```bash
+   ffmpeg -i audio.mp3 -f null -
+   ```
+
+### Python Version Issues
+
+**Symptom:** `SyntaxError` or `ImportError` during setup
+
+**Solutions:**
+
+1. **Requires Python 3.10 or newer:**
+   ```bash
+   python --version  # or python3 --version
+   ```
+
+2. **Windows:** Setup script auto-installs Python 3.12 via winget
+
+3. **Linux/macOS:** Install Python 3.10+:
+   ```bash
+   # Ubuntu
+   sudo apt install python3.12 python3.12-venv
+   
+   # macOS
+   brew install python@3.12
+   ```
+
+### Still Having Issues?
+
+1. **Check the logs:** Run without `--quiet` to see detailed error messages
+2. **Open an issue:** [GitHub Issues](https://github.com/ThePlasmak/faster-whisper/issues)
+3. **Include:**
+   - Platform (Windows/Linux/macOS/WSL2)
+   - GPU model (if any)
+   - Python version
+   - Full error message
 
 ## References
 
