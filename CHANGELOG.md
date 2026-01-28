@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Linux/macOS/WSL2: Manual prerequisite installation
 - GPU auto-detection and CUDA support
   - Automatic PyTorch CUDA installation when NVIDIA GPU detected
-  - ~50-100x speedup over CPU transcription
+  - ~20-60x speedup over CPU transcription
 - Multiple model support
   - Standard models (tiny, base, small, medium, large)
   - Distilled models (~6x faster with <1% accuracy loss)

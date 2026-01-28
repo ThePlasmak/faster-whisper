@@ -128,7 +128,7 @@ Run the transcription script directly:
 | **Windows/Linux (no GPU)** | ❌ CPU only | Windows: ✅ / Linux: ❌ |
 
 **Notes:**
-- GPU acceleration makes transcription **~50-100x faster** than CPU
+- GPU acceleration is **~20-60x faster** than CPU
 - Apple Silicon Macs run on CPU but are still reasonably fast (~2-3x slower than CUDA)
 - On platforms without auto-install, Moltbot can guide you through manual setup
 
@@ -351,8 +351,9 @@ See `SKILL.md` for full model list and recommendations.
 ### Still Having Issues?
 
 1. **Check the logs:** Run without `--quiet` to see detailed error messages
-2. **Open an issue:** [GitHub Issues](https://github.com/ThePlasmak/faster-whisper/issues)
-3. **Include:**
+2. **Ask Moltbot:** Paste the error — it can usually diagnose faster-whisper or installation issues
+3. **Open an issue:** [GitHub Issues](https://github.com/ThePlasmak/faster-whisper/issues)
+4. **Include:**
    - Platform (Windows/Linux/macOS/WSL2)
    - GPU model (if any)
    - Python version
