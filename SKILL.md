@@ -137,10 +137,10 @@ uv pip install --python .venv/bin/python torch --index-url https://download.pyto
 ### Distilled Models (~6x Faster, ~1% WER difference)
 | Model | Size | Speed vs Standard | Accuracy | Use Case |
 |-------|------|-------------------|----------|----------|
-| **`distil-large-v3`** | 756M | 6.3x faster | 9.7% WER | **Default, best balance** |
-| `distil-large-v2` | 756M | 5.8x faster | 10.1% WER | Fallback |
-| `distil-medium.en` | 394M | 6.8x faster | 11.1% WER | English-only, resource-constrained |
-| `distil-small.en` | 166M | 5.6x faster | 12.1% WER | Mobile/edge devices |
+| **`distil-large-v3`** | 756M | ~6.3x faster | 9.7% WER | **Default, best balance** |
+| `distil-large-v2` | 756M | ~5.8x faster | 10.1% WER | Fallback |
+| `distil-medium.en` | 394M | ~6.8x faster | 11.1% WER | English-only, resource-constrained |
+| `distil-small.en` | 166M | ~5.6x faster | 12.1% WER | Mobile/edge devices |
 
 `.en` models are English-only and slightly faster/better for English content.
 
@@ -194,8 +194,8 @@ done
 ## Performance Notes
 
 - **First run**: Downloads model to `~/.cache/huggingface/` (one-time)
-- **GPU**: Automatically uses CUDA if available (10-20x faster!)
-- **Quantization**: INT8 used on CPU for 4x speedup with minimal accuracy loss
+- **GPU**: Automatically uses CUDA if available (~10-20x faster!)
+- **Quantization**: INT8 used on CPU for ~4x speedup with minimal accuracy loss
 - **Memory**: 
   - `distil-large-v3`: ~2GB RAM / ~1GB VRAM
   - `large-v3-turbo`: ~4GB RAM / ~2GB VRAM

@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ~50-100x speedup over CPU transcription
 - Multiple model support
   - Standard models (tiny, base, small, medium, large)
-  - Distilled models (6x faster with <1% accuracy loss)
+  - Distilled models (~6x faster with <1% accuracy loss)
   - Default: distil-large-v3 (best speed/accuracy balance)
 - Word-level timestamps with `--word-timestamps`
 - Voice activity detection (VAD) with `--vad`

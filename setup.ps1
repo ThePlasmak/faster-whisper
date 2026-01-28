@@ -272,7 +272,7 @@ Write-Host ""
 
 if ($gpu.Available) {
     Write-Host "🚀 Installing PyTorch with CUDA support..." -ForegroundColor Cyan
-    Write-Host "   This enables 10-20x faster transcription on your GPU." -ForegroundColor Gray
+    Write-Host "   This enables ~10-20x faster transcription on your GPU." -ForegroundColor Gray
     Write-Host ""
     
     if (Test-Command "uv") {

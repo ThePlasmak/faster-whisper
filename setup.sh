@@ -128,7 +128,7 @@ fi
 if [ "$HAS_CUDA" = true ]; then
     echo ""
     echo "🚀 Installing PyTorch with CUDA support..."
-    echo "   This enables 10-20x faster transcription on your GPU."
+    echo "   This enables ~10-20x faster transcription on your GPU."
     echo ""
     if command -v uv &> /dev/null; then
         uv pip install --python "$VENV_DIR/bin/python" torch --index-url https://download.pytorch.org/whl/cu121
