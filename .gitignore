@@ -10,3 +10,7 @@ __pycache__/
 *.m4a
 *.flac
 *.ogg
+
+# Ignore writing-skills superpower skill's files
+IMPROVEMENTS-SUMMARY.md
+TEST-SCENARIOS.md
