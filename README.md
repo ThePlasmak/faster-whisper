@@ -1,6 +1,6 @@
 # faster-whisper
 
-A Moltbot skill that uses faster-whisper to transcribe audio more quickly.
+A skill for your Moltbot agent that uses faster-whisper to transcribe audio more quickly.
 
 faster-whisper is superior to a OpenAI's Whisper — it's a CTranslate2 reimplementation that's ~4-6x faster with identical accuracy.
 
@@ -32,7 +32,7 @@ pnpm dlx molthub@latest install faster-whisper
 bunx molthub@latest install faster-whisper
 ```
 
-This downloads and installs the skill into your default skills directory (`~/clawd/moltbot/workspace/skills/` or similar).
+This downloads and installs the skill into your default skills directory (`~/clawd/your-agent/workspace/skills/` or similar).
 
 **Via Web UI:**
 Go to https://clawdhub.com/ThePlasmak/faster-whisper and download the zip.
@@ -41,27 +41,27 @@ Go to https://clawdhub.com/ThePlasmak/faster-whisper and download the zip.
 
 1. Go to [Releases](https://github.com/ThePlasmak/faster-whisper/releases)
 2. Download the latest `faster-whisper-X.X.X.zip`
-3. Extract it to your Moltbot skills folder:
-   - **Default location**: `~/clawd/moltbot/workspace/skills/faster-whisper`
-   - Or wherever your Moltbot workspace is configured
+3. Extract it to your agent's skills folder:
+   - **Default location**: `~/clawd/your-agent/workspace/skills/faster-whisper`
+   - Or wherever your agent's workspace is configured
 
 ```bash
 # Example
-cd ~/clawd/moltbot/workspace/skills/
+cd ~/clawd/your-agent/workspace/skills/
 unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
 ```
 
-**If you're lazy:** You can also ask Moltbot to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in chat.
+**If you're lazy:** You can also ask your agent to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in chat.
 
 **Note:** The release zip excludes repository files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
 
 ## Setup
 
-### Using with Moltbot
+### Using with your agent
 
-If you're using Moltbot, it can guide you through the installation automatically.
+If you're using your agent, it can guide you through the installation automatically.
 
-**What Moltbot does:**
+**What your agent does:**
 
 - Detects your platform (Windows/Linux/macOS/WSL2)
 - Checks for Python, ffmpeg, and GPU drivers
@@ -69,7 +69,7 @@ If you're using Moltbot, it can guide you through the installation automatically
 
 ### Standalone CLI Setup
 
-If you want to use the transcription scripts directly without Moltbot:
+If you want to use the transcription scripts directly without your agent:
 
 **Windows (Native):**
 ```powershell
@@ -89,7 +89,7 @@ If you want to use the transcription scripts directly without Moltbot:
 
 ## How to Use
 
-### With Moltbot
+### With your agent
 
 Just ask in natural language:
 
@@ -100,7 +100,7 @@ Just ask in natural language:
 "Transcribe this and save as JSON"
 ```
 
-Moltbot will:
+Your agent will:
 - Use the GPU if available
 - Handle errors and suggest fixes
 - Return formatted results
@@ -171,7 +171,7 @@ Run the transcription script directly:
 **Notes:**
 - GPU acceleration is **~20-60x faster** than CPU
 - Apple Silicon Macs run on CPU but are still reasonably fast (~2-3x slower than CUDA)
-- On platforms without auto-install, Moltbot can guide you through manual setup
+- On platforms without auto-install, your agent can guide you through manual setup
 
 ### CUDA Requirements (NVIDIA GPUs)
 
@@ -392,7 +392,7 @@ See `SKILL.md` for full model list and recommendations.
 ### Still Having Issues?
 
 1. **Check the logs:** Run without `--quiet` to see detailed error messages
-2. **Ask Moltbot:** Paste the error — it can usually diagnose faster-whisper or installation issues
+2. **Ask your agent:** Paste the error — it can usually diagnose faster-whisper or installation issues
 3. **Open an issue:** [GitHub Issues](https://github.com/ThePlasmak/faster-whisper/issues)
 4. **Include:**
    - Platform (Windows/Linux/macOS/WSL2)
