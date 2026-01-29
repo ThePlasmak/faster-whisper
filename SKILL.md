@@ -9,9 +9,90 @@ platforms: ["windows", "linux", "macos", "wsl2"]
 metadata: {"moltbot":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"]}}}
 ---
 
-# Faster-Whisper
+# Faster Whisper
 
 Local speech-to-text using faster-whisper — a CTranslate2 reimplementation of OpenAI's Whisper that runs **4-6x faster** with identical accuracy. With GPU acceleration, expect **~20x realtime** transcription (a 10-minute audio file in ~30 seconds).
+
+## When to Use
+
+Use this skill when you need to:
+- **Transcribe audio/video files** — meetings, interviews, podcasts, lectures, YouTube videos
+- **Convert speech to text locally** — no API costs, works offline (after model download)
+- **Batch process multiple audio files** — efficient for large collections
+- **Generate subtitles/captions** — word-level timestamps available
+- **Multilingual transcription** — supports 99+ languages with auto-detection
+
+**Trigger phrases:** "transcribe this audio", "convert speech to text", "what did they say", "make a transcript", "audio to text", "subtitle this video"
+
+**When NOT to use:**
+- Real-time/streaming transcription (use streaming-optimized tools instead)
+- Cloud-only environments without local compute
+- Files <10 seconds where API call latency doesn't matter
+
+## Quick Reference
+
+| Task | Command | Notes |
+|------|---------|-------|
+| **Basic transcription** | `./scripts/transcribe audio.mp3` | Uses default distil-large-v3 |
+| **Faster English** | `./scripts/transcribe audio.mp3 --model distil-medium.en --language en` | English-only, 6.8x faster |
+| **Maximum accuracy** | `./scripts/transcribe audio.mp3 --model large-v3-turbo --beam-size 10` | Slower but best quality |
+| **Word timestamps** | `./scripts/transcribe audio.mp3 --word-timestamps` | For subtitles/captions |
+| **JSON output** | `./scripts/transcribe audio.mp3 --json -o output.json` | Programmatic access |
+| **Multilingual** | `./scripts/transcribe audio.mp3 --model large-v3-turbo` | Auto-detects language |
+| **Remove silence** | `./scripts/transcribe audio.mp3 --vad` | Voice activity detection |
+
+## Model Selection
+
+Choose the right model for your needs:
+
+```dot
+digraph model_selection {
+    rankdir=LR;
+    node [shape=box, style=rounded];
+
+    start [label="Start", shape=doublecircle];
+    need_accuracy [label="Need maximum\naccuracy?", shape=diamond];
+    multilingual [label="Multilingual\ncontent?", shape=diamond];
+    resource_constrained [label="Resource\nconstraints?", shape=diamond];
+
+    large_v3 [label="large-v3\nor\nlarge-v3-turbo", style="rounded,filled", fillcolor=lightblue];
+    large_turbo [label="large-v3-turbo", style="rounded,filled", fillcolor=lightblue];
+    distil_large [label="distil-large-v3\n(default)", style="rounded,filled", fillcolor=lightgreen];
+    distil_medium [label="distil-medium.en", style="rounded,filled", fillcolor=lightyellow];
+    distil_small [label="distil-small.en", style="rounded,filled", fillcolor=lightyellow];
+
+    start -> need_accuracy;
+    need_accuracy -> large_v3 [label="yes"];
+    need_accuracy -> multilingual [label="no"];
+    multilingual -> large_turbo [label="yes"];
+    multilingual -> resource_constrained [label="no (English)"];
+    resource_constrained -> distil_small [label="mobile/edge"];
+    resource_constrained -> distil_medium [label="some limits"];
+    resource_constrained -> distil_large [label="no"];
+}
+```
+
+### Model Table
+
+#### Standard Models (Full Whisper)
+| Model | Size | Speed | Accuracy | Use Case |
+|-------|------|-------|----------|----------|
+| `tiny` / `tiny.en` | 39M | Fastest | Basic | Quick drafts |
+| `base` / `base.en` | 74M | Very fast | Good | General use |
+| `small` / `small.en` | 244M | Fast | Better | Most tasks |
+| `medium` / `medium.en` | 769M | Moderate | High | Quality transcription |
+| `large-v1/v2/v3` | 1.5GB | Slower | Best | Maximum accuracy |
+| **`large-v3-turbo`** | 809M | Fast | Excellent | **Recommended for accuracy** |
+
+#### Distilled Models (~6x Faster, ~1% WER difference)
+| Model | Size | Speed vs Standard | Accuracy | Use Case |
+|-------|------|-------------------|----------|----------|
+| **`distil-large-v3`** | 756M | ~6.3x faster | 9.7% WER | **Default, best balance** |
+| `distil-large-v2` | 756M | ~5.8x faster | 10.1% WER | Fallback |
+| `distil-medium.en` | 394M | ~6.8x faster | 11.1% WER | English-only, resource-constrained |
+| `distil-small.en` | 166M | ~5.6x faster | 12.1% WER | Mobile/edge devices |
+
+`.en` models are English-only and slightly faster/better for English content.
 
 ## Setup
 
@@ -83,7 +164,7 @@ uv pip install --python .venv/bin/python torch --index-url https://download.pyto
 - **Windows users**: Ensure you have [NVIDIA drivers](https://www.nvidia.com/download/index.aspx) installed
 - **WSL2 users**: Ensure you have the [NVIDIA CUDA drivers for WSL](https://docs.nvidia.com/cuda/wsl-user-guide/) installed on Windows
 
-## Quick Start
+## Usage
 
 **Linux/macOS/WSL2:**
 ```bash
@@ -117,36 +198,6 @@ uv pip install --python .venv/bin/python torch --index-url https://download.pyto
 # JSON output
 .\scripts\transcribe.cmd audio.mp3 --json
 ```
-
-## Available Models
-
-### Standard Models (Full Whisper)
-| Model | Size | Speed | Accuracy | Use Case |
-|-------|------|-------|----------|----------|
-| `tiny` / `tiny.en` | 39M | Fastest | Basic | Quick drafts |
-| `base` / `base.en` | 74M | Very fast | Good | General use |
-| `small` / `small.en` | 244M | Fast | Better | Most tasks |
-| `medium` / `medium.en` | 769M | Moderate | High | Quality transcription |
-| `large-v1/v2/v3` | 1.5GB | Slower | Best | Maximum accuracy |
-| **`large-v3-turbo`** | 809M | Fast | Excellent | **Recommended** |
-
-### Distilled Models (~6x Faster, ~1% WER difference)
-| Model | Size | Speed vs Standard | Accuracy | Use Case |
-|-------|------|-------------------|----------|----------|
-| **`distil-large-v3`** | 756M | ~6.3x faster | 9.7% WER | **Default, best balance** |
-| `distil-large-v2` | 756M | ~5.8x faster | 10.1% WER | Fallback |
-| `distil-medium.en` | 394M | ~6.8x faster | 11.1% WER | English-only, resource-constrained |
-| `distil-small.en` | 166M | ~5.6x faster | 12.1% WER | Mobile/edge devices |
-
-`.en` models are English-only and slightly faster/better for English content.
-
-## Model Selection Guide
-
-- **Default**: `distil-large-v3` — Best speed/accuracy tradeoff
-- **Maximum accuracy**: `large-v3` or `large-v3-turbo`
-- **Fast English**: `distil-medium.en` or `large-v3-turbo`
-- **Mobile/Edge**: `distil-small.en` or `tiny.en`
-- **Multilingual**: `large-v3-turbo` (distil models are English-only)
 
 ## Options
 
@@ -187,12 +238,24 @@ done
 ./scripts/transcribe audio.mp3 --vad
 ```
 
+## Common Mistakes
+
+| Mistake | Problem | Solution |
+|---------|---------|----------|
+| **Using CPU when GPU available** | 10-20x slower transcription | Check `nvidia-smi` on Windows/Linux; verify CUDA installation |
+| **Not specifying language** | Wastes time auto-detecting on known content | Use `--language en` when you know the language |
+| **Using wrong model** | Unnecessary slowness or poor accuracy | Default `distil-large-v3` is excellent; only use `large-v3` if accuracy issues |
+| **Ignoring distilled models** | Missing 6x speedup with <1% accuracy loss | Try `distil-large-v3` before reaching for standard models |
+| **Forgetting ffmpeg** | Setup fails or audio can't be processed | Setup script handles this; manual installs need ffmpeg separately |
+| **Out of memory errors** | Model too large for available VRAM/RAM | Use smaller model or `--compute-type int8` |
+| **Over-engineering beam size** | Diminishing returns past beam-size 5-7 | Default 5 is fine; try 10 for critical transcripts |
+
 ## Performance Notes
 
 - **First run**: Downloads model to `~/.cache/huggingface/` (one-time)
 - **GPU**: Automatically uses CUDA if available (~10-20x faster)
 - **Quantization**: INT8 used on CPU for ~4x speedup with minimal accuracy loss
-- **Memory**: 
+- **Memory**:
   - `distil-large-v3`: ~2GB RAM / ~1GB VRAM
   - `large-v3-turbo`: ~4GB RAM / ~2GB VRAM
   - `tiny/base`: <1GB RAM
