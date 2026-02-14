@@ -1,12 +1,12 @@
 ---
 name: faster-whisper
 description: Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. Supports standard and distilled models with word-level timestamps.
-version: 1.0.4
+version: 1.0.5
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu"]
 platforms: ["windows", "linux", "macos", "wsl2"]
-metadata: {"moltbot":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"]}}}
+metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"]}}}
 ---
 
 # Faster Whisper
