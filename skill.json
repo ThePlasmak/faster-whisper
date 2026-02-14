@@ -1,6 +1,6 @@
 {
   "name": "faster-whisper",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Local speech-to-text using faster-whisper with 4-6x speed boost over OpenAI Whisper. GPU acceleration enables ~20x realtime transcription.",
   "author": "Sarah Mak",
   "tags": [
@@ -13,7 +13,15 @@
     "ml"
   ],
   "requires": {
-    "bins": ["python3", "ffmpeg"]
+    "bins": [
+      "python3",
+      "ffmpeg"
+    ]
   },
-  "platforms": ["windows", "linux", "macos", "wsl2"]
+  "platforms": [
+    "windows",
+    "linux",
+    "macos",
+    "wsl2"
+  ]
 }
