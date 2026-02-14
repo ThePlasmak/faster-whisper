@@ -1,11 +1,11 @@
 ---
 name: faster-whisper
 description: Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. Supports standard and distilled models with word-level timestamps.
-version: 1.0.6
+version: 1.0.7
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu"]
-platforms: ["windows", "linux", "macos", "wsl2"]
+platforms: ["linux", "macos", "wsl2"]
 metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"]}}}
 ---
 
@@ -102,33 +102,18 @@ digraph model_selection {
 ./setup.sh
 ```
 
-### Windows (Native)
-```powershell
-# Run from PowerShell (auto-installs Python & ffmpeg if missing via winget)
-.\setup.ps1
-```
-
-The Windows setup script will:
-- Auto-install Python 3.12 via winget if not found
-- Auto-install ffmpeg via winget if not found
-- Detect NVIDIA GPU and install CUDA-enabled PyTorch
-- Create venv and install all dependencies
-
 Requirements:
-- **Linux/macOS/WSL2**: Python 3.10+, ffmpeg
-- **Windows**: Nothing! Setup auto-installs prerequisites via winget
+- Python 3.10+, ffmpeg
 
 ### Platform Support
 
-| Platform | Acceleration | Speed | Auto-Install |
-|----------|-------------|-------|--------------|
-| **Windows + NVIDIA GPU** | CUDA | ~20x realtime 🚀 | ✅ Full |
-| **Linux + NVIDIA GPU** | CUDA | ~20x realtime 🚀 | Manual prereqs |
-| **WSL2 + NVIDIA GPU** | CUDA | ~20x realtime 🚀 | Manual prereqs |
-| macOS Apple Silicon | CPU* | ~3-5x realtime | Manual prereqs |
-| macOS Intel | CPU | ~1-2x realtime | Manual prereqs |
-| Windows (no GPU) | CPU | ~1x realtime | ✅ Full |
-| Linux (no GPU) | CPU | ~1x realtime | Manual prereqs |
+| Platform | Acceleration | Speed |
+|----------|-------------|-------|
+| **Linux + NVIDIA GPU** | CUDA | ~20x realtime 🚀 |
+| **WSL2 + NVIDIA GPU** | CUDA | ~20x realtime 🚀 |
+| macOS Apple Silicon | CPU* | ~3-5x realtime |
+| macOS Intel | CPU | ~1-2x realtime |
+| Linux (no GPU) | CPU | ~1x realtime |
 
 *faster-whisper uses CTranslate2 which is CPU-only on macOS, but Apple Silicon is fast enough for practical use.
 
@@ -143,7 +128,6 @@ The setup script auto-detects your GPU and installs PyTorch with CUDA. **Always 
 
 If setup didn't detect your GPU, manually install PyTorch with CUDA:
 
-**Linux/macOS/WSL2:**
 ```bash
 # For CUDA 12.x
 uv pip install --python .venv/bin/python torch --index-url https://download.pytorch.org/whl/cu121
@@ -152,21 +136,10 @@ uv pip install --python .venv/bin/python torch --index-url https://download.pyto
 uv pip install --python .venv/bin/python torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
-**Windows:**
-```powershell
-# For CUDA 12.x
-.venv\Scripts\pip install torch --index-url https://download.pytorch.org/whl/cu121
-
-# For CUDA 11.x
-.venv\Scripts\pip install torch --index-url https://download.pytorch.org/whl/cu118
-```
-
-- **Windows users**: Ensure you have [NVIDIA drivers](https://www.nvidia.com/download/index.aspx) installed
 - **WSL2 users**: Ensure you have the [NVIDIA CUDA drivers for WSL](https://docs.nvidia.com/cuda/wsl-user-guide/) installed on Windows
 
 ## Usage
 
-**Linux/macOS/WSL2:**
 ```bash
 # Basic transcription
 ./scripts/transcribe audio.mp3
@@ -182,21 +155,6 @@ uv pip install --python .venv/bin/python torch --index-url https://download.pyto
 
 # JSON output
 ./scripts/transcribe audio.mp3 --json
-```
-
-**Windows (cmd or PowerShell):**
-```powershell
-# Basic transcription
-.\scripts\transcribe.cmd audio.mp3
-
-# With specific model
-.\scripts\transcribe.cmd audio.wav --model large-v3-turbo
-
-# With word timestamps (PowerShell native syntax also works)
-.\scripts\transcribe.ps1 audio.mp3 -WordTimestamps
-
-# JSON output
-.\scripts\transcribe.cmd audio.mp3 --json
 ```
 
 ## Options
@@ -242,7 +200,7 @@ done
 
 | Mistake | Problem | Solution |
 |---------|---------|----------|
-| **Using CPU when GPU available** | 10-20x slower transcription | Check `nvidia-smi` on Windows/Linux; verify CUDA installation |
+| **Using CPU when GPU available** | 10-20x slower transcription | Check `nvidia-smi`; verify CUDA installation |
 | **Not specifying language** | Wastes time auto-detecting on known content | Use `--language en` when you know the language |
 | **Using wrong model** | Unnecessary slowness or poor accuracy | Default `distil-large-v3` is excellent; only use `large-v3` if accuracy issues |
 | **Ignoring distilled models** | Missing 6x speedup with <1% accuracy loss | Try `distil-large-v3` before reaching for standard models |
@@ -274,14 +232,7 @@ done
 **Setup fails**: Make sure Python 3.10+ is installed
 **Out of memory**: Use smaller model or `--compute-type int8`
 **Slow on CPU**: Expected — use GPU for practical transcription
-**Model download fails**: Check `~/.cache/huggingface/` permissions (Linux/macOS) or `%USERPROFILE%\.cache\huggingface\` (Windows)
-
-### Windows-Specific
-
-**"winget not found"**: Install [App Installer](https://apps.microsoft.com/detail/9NBLGGH4NNS1) from Microsoft Store, or install Python/ffmpeg manually
-**"Python not in PATH after install"**: Close and reopen your terminal, then run `setup.ps1` again
-**PowerShell execution policy error**: Run `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` or use `transcribe.cmd` instead
-**nvidia-smi not found but have GPU**: Install [NVIDIA drivers](https://www.nvidia.com/download/index.aspx) — the Game Ready or Studio drivers include nvidia-smi
+**Model download fails**: Check `~/.cache/huggingface/` permissions
 
 ## References
 
