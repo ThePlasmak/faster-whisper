@@ -1,6 +1,6 @@
 # faster-whisper
 
-A skill for your Moltbot agent that uses faster-whisper to transcribe audio more quickly.
+A skill for your OpenClaw agent that uses faster-whisper to transcribe audio more quickly.
 
 faster-whisper is superior to a OpenAI's Whisper — it's a CTranslate2 reimplementation that's ~4-6x faster with identical accuracy.
 
@@ -17,19 +17,19 @@ faster-whisper is superior to a OpenAI's Whisper — it's a CTranslate2 reimplem
 
 ## Installation
 
-### Option 1: Install from MoltHub
+### Option 1: Install from ClawHub
 
 **Via CLI** (no installation required):
 
 ```bash
 # Using npx (npm)
-npx molthub@latest install faster-whisper
+npx clawdhub@latest install faster-whisper
 
 # Using pnpm
-pnpm dlx molthub@latest install faster-whisper
+pnpm dlx clawdhub@latest install faster-whisper
 
 # Using bun
-bunx molthub@latest install faster-whisper
+bunx clawdhub@latest install faster-whisper
 ```
 
 This downloads and installs the skill into your default skills directory (`~/clawd/your-agent/workspace/skills/` or similar).
