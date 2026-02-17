@@ -31,7 +31,7 @@ Use this skill when you need to:
 - Default command (`./scripts/transcribe audio.mp3`) is the fastest path — don't add flags the user didn't ask for
 - Only add `--diarize` if the user asks "who said what" / "identify speakers"
 - Only add `--format srt/vtt` if the user asks for subtitles/captions
-- Only add `--word-timestamps` or `--precise` if the user needs word-level timing
+- Only add `--word-timestamps` if the user needs word-level timing
 - Only add `--initial-prompt` if there's domain-specific jargon to prime
 - Any word-level feature auto-runs wav2vec2 alignment (~5-10s overhead)
 - `--diarize` adds ~20-30s on top of that
@@ -48,7 +48,7 @@ Use this skill when you need to:
 | **Basic transcription** | `./scripts/transcribe audio.mp3` | Batched inference, VAD on, distil-large-v3.5 |
 | **SRT subtitles** | `./scripts/transcribe audio.mp3 --format srt -o subs.srt` | Word timestamps auto-enabled |
 | **VTT subtitles** | `./scripts/transcribe audio.mp3 --format vtt -o subs.vtt` | WebVTT format |
-| **Precise timestamps** | `./scripts/transcribe audio.mp3 --precise --format srt` | wav2vec2 alignment (~10ms) |
+| **Word timestamps** | `./scripts/transcribe audio.mp3 --word-timestamps --format srt` | wav2vec2 aligned (~10ms) |
 | **Speaker diarization** | `./scripts/transcribe audio.mp3 --diarize` | Requires pyannote.audio |
 | **YouTube/URL** | `./scripts/transcribe https://youtube.com/watch?v=...` | Auto-downloads via yt-dlp |
 | **Batch process** | `./scripts/transcribe *.mp3 -o ./transcripts/` | Output to directory |
@@ -229,7 +229,6 @@ Inference Tuning:
   --no-batch            Disable batched inference (use standard WhisperModel)
 
 Advanced:
-  --precise             Enable word timestamps with wav2vec2 alignment (~10ms)
   --diarize             Speaker diarization (requires pyannote.audio)
   --min-confidence PROB Filter segments below this avg word confidence (0.0–1.0)
   --skip-existing       Skip files whose output already exists (batch mode)
@@ -326,22 +325,20 @@ Speakers are labeled `SPEAKER_1`, `SPEAKER_2`, etc. in order of first appearance
 
 ## Precise Word Timestamps
 
-Whenever word-level timestamps are computed (`--word-timestamps`, `--precise`, `--diarize`, or `--min-confidence`), a wav2vec2 forced alignment pass automatically refines them from Whisper's ~100-200ms accuracy to ~10ms.
+Whenever word-level timestamps are computed (`--word-timestamps`, `--diarize`, or `--min-confidence`), a wav2vec2 forced alignment pass automatically refines them from Whisper's ~100-200ms accuracy to ~10ms. No extra flag needed.
 
 ```bash
-# Explicit precise word timestamps
-./scripts/transcribe audio.mp3 --precise --format json
+# Word timestamps with automatic wav2vec2 alignment
+./scripts/transcribe audio.mp3 --word-timestamps --format json
 
 # Diarization also gets precise alignment automatically
 ./scripts/transcribe meeting.wav --diarize
 
-# Word timestamps for subtitles
+# Precise subtitles
 ./scripts/transcribe audio.mp3 --word-timestamps --format srt -o subtitles.srt
 ```
 
 Uses the MMS (Massively Multilingual Speech) model from torchaudio — supports 1000+ languages. The model is cached after first load, so batch processing stays fast.
-
-`--precise` is a shorthand that enables word timestamps + alignment without needing another feature flag.
 
 ## URL & YouTube Input
 
@@ -406,7 +403,7 @@ Batch mode prints a summary after all files complete:
 | **--diarize without HuggingFace token** | Model download fails | Run `huggingface-cli login` and accept model agreements |
 | **URL input without yt-dlp** | Download fails | Install: `pipx install yt-dlp` |
 | **--min-confidence too high** | Drops good segments with natural pauses | Start at 0.5, adjust up; check JSON output for probabilities |
-| **Using --precise for basic transcription** | Adds ~5-10s overhead for negligible benefit | Only use when word-level precision matters |
+| **Using --word-timestamps for basic transcription** | Adds ~5-10s overhead for negligible benefit | Only use when word-level precision matters |
 | **Batch without -o directory** | All output mixed in stdout | Use `-o ./transcripts/` to write one file per input |
 
 ## Performance Notes
@@ -434,7 +431,7 @@ Batch mode prints a summary after all files complete:
 - **Production-ready**: Stable C++ backend (CTranslate2)
 - **Distilled models**: ~6x faster with <1% accuracy loss
 - **Subtitles**: Native SRT/VTT output
-- **Precise alignment**: Optional wav2vec2 refinement (~10ms word boundaries)
+- **Precise alignment**: Automatic wav2vec2 refinement (~10ms word boundaries)
 - **Diarization**: Optional speaker identification via pyannote
 - **URLs**: Direct YouTube/URL input
 

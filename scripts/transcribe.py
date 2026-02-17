@@ -515,7 +515,6 @@ def transcribe_file(audio_path, pipeline, args):
         args.word_timestamps
         or args.min_confidence is not None
         or args.diarize   # word-level needed for accurate speaker assignment
-        or args.precise   # word-level needed for wav2vec2 alignment
     )
 
     kw = dict(
@@ -691,10 +690,6 @@ def main():
 
     # --- Advanced features ---
     p.add_argument(
-        "--precise", action="store_true",
-        help="Refine word timestamps with wav2vec2 forced alignment (~10ms accuracy)",
-    )
-    p.add_argument(
         "--diarize", action="store_true",
         help="Speaker diarization (requires pyannote.audio; install via setup.sh --diarize)",
     )
@@ -725,10 +720,13 @@ def main():
     # --- Backward compat (hidden) ---
     p.add_argument("-j", "--json", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--vad", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--precise", action="store_true", help=argparse.SUPPRESS)
 
     args = p.parse_args()
     if args.json:
         args.format = "json"
+    if args.precise:
+        args.word_timestamps = True
 
     # ---- Resolve inputs ----
     temp_dirs = []
