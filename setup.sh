@@ -156,15 +156,15 @@ if [ "$HAS_CUDA" = true ]; then
     echo "   This enables ~10-20x faster transcription on your GPU."
     echo ""
     if command -v uv &> /dev/null; then
-        uv pip install --python "$VENV_DIR/bin/python" torch --index-url https://download.pytorch.org/whl/cu121
+        uv pip install --python "$VENV_DIR/bin/python" torch torchaudio --index-url https://download.pytorch.org/whl/cu121
     else
-        "$VENV_DIR/bin/pip" install torch --index-url https://download.pytorch.org/whl/cu121
+        "$VENV_DIR/bin/pip" install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
     fi
-    echo "✓ PyTorch with CUDA installed"
+    echo "✓ PyTorch + torchaudio with CUDA installed"
 elif [ "$OS_TYPE" = "macos" ]; then
     echo ""
     echo "🍎 Installing PyTorch for macOS..."
-    pip_install torch
+    pip_install torch torchaudio
     echo "✓ PyTorch installed"
     if [ "$HAS_APPLE_SILICON" = true ]; then
         echo "ℹ️  Note: faster-whisper uses CPU on macOS (Apple Silicon is still fast!)"
