@@ -29,12 +29,12 @@ Use this skill when you need to:
 
 **⚠️ Agent guidance — keep invocations minimal:**
 - Default command (`./scripts/transcribe audio.mp3`) is the fastest path — don't add flags the user didn't ask for
-- Only add `--precise` if the user needs exact word boundaries (karaoke, audio editing)
 - Only add `--diarize` if the user asks "who said what" / "identify speakers"
 - Only add `--format srt/vtt` if the user asks for subtitles/captions
-- Only add `--word-timestamps` if the user needs word-level timing
+- Only add `--word-timestamps` or `--precise` if the user needs word-level timing
 - Only add `--initial-prompt` if there's domain-specific jargon to prime
-- Each extra feature adds overhead; `--diarize` especially adds ~20-30s
+- Any word-level feature auto-runs wav2vec2 alignment (~5-10s overhead)
+- `--diarize` adds ~20-30s on top of that
 
 **When NOT to use:**
 - Real-time/streaming transcription (use streaming-optimized tools instead)
@@ -219,7 +219,7 @@ Model & Language:
 
 Output Format:
   -f, --format FMT      text | json | srt | vtt (default: text)
-  --word-timestamps     Include word-level timestamps (auto-enabled for --diarize)
+  --word-timestamps     Include word-level timestamps (wav2vec2 aligned automatically)
   -o, --output PATH     Output file or directory (directory for batch mode)
 
 Inference Tuning:
@@ -229,7 +229,7 @@ Inference Tuning:
   --no-batch            Disable batched inference (use standard WhisperModel)
 
 Advanced:
-  --precise             Refine word timestamps with wav2vec2 (~10ms accuracy)
+  --precise             Enable word timestamps with wav2vec2 alignment (~10ms)
   --diarize             Speaker diarization (requires pyannote.audio)
   --min-confidence PROB Filter segments below this avg word confidence (0.0–1.0)
   --skip-existing       Skip files whose output already exists (batch mode)
@@ -326,22 +326,22 @@ Speakers are labeled `SPEAKER_1`, `SPEAKER_2`, etc. in order of first appearance
 
 ## Precise Word Timestamps
 
-By default, word timestamps come from Whisper's cross-attention (~100-200ms accuracy). The `--precise` flag runs a second pass with wav2vec2 forced alignment for ~10ms accuracy.
+Whenever word-level timestamps are computed (`--word-timestamps`, `--precise`, `--diarize`, or `--min-confidence`), a wav2vec2 forced alignment pass automatically refines them from Whisper's ~100-200ms accuracy to ~10ms.
 
 ```bash
-# Precise word timestamps
+# Explicit precise word timestamps
 ./scripts/transcribe audio.mp3 --precise --format json
 
-# Precise subtitles
-./scripts/transcribe audio.mp3 --precise --format srt -o subtitles.srt
+# Diarization also gets precise alignment automatically
+./scripts/transcribe meeting.wav --diarize
 
-# Precise + diarization (alignment runs first, improves speaker assignment)
-./scripts/transcribe meeting.wav --precise --diarize
+# Word timestamps for subtitles
+./scripts/transcribe audio.mp3 --word-timestamps --format srt -o subtitles.srt
 ```
 
 Uses the MMS (Massively Multilingual Speech) model from torchaudio — supports 1000+ languages. The model is cached after first load, so batch processing stays fast.
 
-**When to use:** Karaoke-style subtitles, audio editing at word boundaries, any task where ±200ms matters. For basic transcription or subtitles, default timestamps are fine.
+`--precise` is a shorthand that enables word timestamps + alignment without needing another feature flag.
 
 ## URL & YouTube Input
 

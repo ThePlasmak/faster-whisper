@@ -558,7 +558,9 @@ def transcribe_file(audio_path, pipeline, args):
         segments.append(seg_data)
 
     # Refine word timestamps with wav2vec2 (before diarization so it benefits)
-    if args.precise:
+    # Auto-runs whenever word timestamps are computed (--precise, --diarize,
+    # --word-timestamps, --min-confidence all trigger word-level output)
+    if need_words:
         segments = run_alignment(str(audio_path), segments, quiet=args.quiet)
 
     # Diarize after transcription (and alignment if --precise)
