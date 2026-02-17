@@ -1,11 +1,32 @@
 #!/usr/bin/env bash
 # faster-whisper skill setup
 # Creates venv and installs dependencies (with GPU support where available)
+#
+# Usage:
+#   ./setup.sh              # Base install
+#   ./setup.sh --diarize    # Base install + speaker diarization (pyannote.audio)
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SCRIPT_DIR/.venv"
+INSTALL_DIARIZE=false
+
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --diarize) INSTALL_DIARIZE=true ;;
+        --help|-h)
+            echo "Usage: ./setup.sh [--diarize]"
+            echo ""
+            echo "Options:"
+            echo "  --diarize    Also install pyannote.audio for speaker diarization"
+            echo "               Requires HuggingFace token at ~/.cache/huggingface/token"
+            echo "               and model agreement at https://hf.co/pyannote/speaker-diarization-3.1"
+            exit 0
+            ;;
+    esac
+done
 
 echo "🎙️ Setting up faster-whisper skill..."
 
@@ -69,9 +90,7 @@ if [ "$OS_TYPE" = "linux" ]; then
         NVIDIA_SMI="nvidia-smi"
     else
         # WSL2: nvidia-smi is in /usr/lib/wsl/lib/ (not in PATH by default)
-        # Check if we're in WSL2 and look for nvidia-smi there
         if grep -qi microsoft /proc/version 2>/dev/null; then
-            # We're in WSL2 - search for nvidia-smi in WSL lib directories
             for wsl_smi in /usr/lib/wsl/lib/nvidia-smi /usr/lib/wsl/drivers/*/nvidia-smi; do
                 if [ -f "$wsl_smi" ]; then
                     NVIDIA_SMI="$wsl_smi"
@@ -90,7 +109,6 @@ if [ "$OS_TYPE" = "linux" ]; then
         fi
     fi
 elif [ "$OS_TYPE" = "macos" ]; then
-    # Check for Apple Silicon
     if [ "$ARCH" = "arm64" ]; then
         HAS_APPLE_SILICON=true
         GPU_NAME="Apple Silicon"
@@ -115,14 +133,21 @@ else
     echo "✓ Virtual environment created"
 fi
 
-# Install dependencies
+# Helper: install with uv or pip
+pip_install() {
+    if command -v uv &> /dev/null; then
+        uv pip install --python "$VENV_DIR/bin/python" "$@"
+    else
+        "$VENV_DIR/bin/pip" install "$@"
+    fi
+}
+
+# Install base dependencies
 echo "Installing faster-whisper..."
-if command -v uv &> /dev/null; then
-    uv pip install --python "$VENV_DIR/bin/python" -r "$SCRIPT_DIR/requirements.txt"
-else
+if ! command -v uv &> /dev/null; then
     "$VENV_DIR/bin/pip" install --upgrade pip
-    "$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements.txt"
 fi
+pip_install -r "$SCRIPT_DIR/requirements.txt"
 
 # Install PyTorch based on platform
 if [ "$HAS_CUDA" = true ]; then
@@ -139,11 +164,7 @@ if [ "$HAS_CUDA" = true ]; then
 elif [ "$OS_TYPE" = "macos" ]; then
     echo ""
     echo "🍎 Installing PyTorch for macOS..."
-    if command -v uv &> /dev/null; then
-        uv pip install --python "$VENV_DIR/bin/python" torch
-    else
-        "$VENV_DIR/bin/pip" install torch
-    fi
+    pip_install torch
     echo "✓ PyTorch installed"
     if [ "$HAS_APPLE_SILICON" = true ]; then
         echo "ℹ️  Note: faster-whisper uses CPU on macOS (Apple Silicon is still fast!)"
@@ -152,6 +173,27 @@ else
     echo ""
     echo "ℹ️  No NVIDIA GPU detected. Using CPU mode."
     echo "   If you have a GPU, ensure CUDA drivers are installed."
+fi
+
+# Install diarization dependencies (optional)
+if [ "$INSTALL_DIARIZE" = true ]; then
+    echo ""
+    echo "🔊 Installing speaker diarization (pyannote.audio)..."
+    pip_install pyannote.audio
+
+    # Check for HuggingFace token
+    HF_TOKEN_PATH="$HOME/.cache/huggingface/token"
+    if [ ! -f "$HF_TOKEN_PATH" ]; then
+        echo ""
+        echo "⚠️  No HuggingFace token found at $HF_TOKEN_PATH"
+        echo "   Diarization requires:"
+        echo "   1. A HuggingFace account and token (huggingface-cli login)"
+        echo "   2. Accept model agreement: https://hf.co/pyannote/speaker-diarization-3.1"
+        echo "   3. Accept model agreement: https://hf.co/pyannote/segmentation-3.0"
+    else
+        echo "✓ HuggingFace token found"
+    fi
+    echo "✓ pyannote.audio installed"
 fi
 
 # Make scripts executable
@@ -167,8 +209,13 @@ elif [ "$HAS_APPLE_SILICON" = true ]; then
 else
     echo "💻 CPU mode — transcription will be slower but functional"
 fi
+if [ "$INSTALL_DIARIZE" = true ]; then
+    echo "🔊 Speaker diarization enabled (--diarize flag)"
+fi
 echo ""
 echo "Usage:"
 echo "  $SCRIPT_DIR/scripts/transcribe audio.mp3"
+echo "  $SCRIPT_DIR/scripts/transcribe audio.mp3 --format srt -o subtitles.srt"
+echo "  $SCRIPT_DIR/scripts/transcribe audio.mp3 --diarize"
 echo ""
-echo "First run will download the model (~756MB for distil-large-v3)."
+echo "First run will download the model (~756MB for distil-large-v3.5)."
