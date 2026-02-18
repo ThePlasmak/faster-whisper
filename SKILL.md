@@ -4,9 +4,38 @@ description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI
 version: 1.5.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
-tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization", "podcast", "chapters", "search", "csv", "ttml", "batch"]
+tags:
+  [
+    "audio",
+    "transcription",
+    "whisper",
+    "speech-to-text",
+    "ml",
+    "cuda",
+    "gpu",
+    "subtitles",
+    "diarization",
+    "podcast",
+    "chapters",
+    "search",
+    "csv",
+    "ttml",
+    "batch",
+  ]
 platforms: ["linux", "macos", "wsl2"]
-metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["python3"],"optionalBins":["ffmpeg","yt-dlp"],"optionalPaths":["~/.cache/huggingface/token"]}}}
+metadata:
+  {
+    "openclaw":
+      {
+        "emoji": "🗣️",
+        "requires":
+          {
+            "bins": ["python3"],
+            "optionalBins": ["ffmpeg", "yt-dlp"],
+            "optionalPaths": ["~/.cache/huggingface/token"],
+          },
+      },
+  }
 ---
 
 # Faster Whisper
@@ -16,6 +45,7 @@ Local speech-to-text using faster-whisper — a CTranslate2 reimplementation of 
 ## When to Use
 
 Use this skill when you need to:
+
 - **Transcribe audio/video files** — meetings, interviews, podcasts, lectures, YouTube videos
 - **Generate subtitles** — SRT, VTT, ASS, LRC, or TTML broadcast-standard subtitles
 - **Identify speakers** — diarization labels who said what (`--diarize`)
@@ -24,11 +54,11 @@ Use this skill when you need to:
 - **Batch process files** — glob patterns, directories, skip-existing support; ETA shown automatically
 - **Convert speech to text locally** — no API costs, works offline (after model download)
 - **Translate to English** — translate any language to English with `--translate`
-- **Multilingual transcription** — supports 99+ languages with auto-detection
-- **Mixed-language batch** — `--language-map` assigns a different language per file
-- **Code-switching audio** — `--multilingual` for mixed-language content
-- **Prime for domain terms** — use `--initial-prompt` for jargon-heavy content
-- **Preprocess noisy audio** — `--normalize` and `--denoise` before transcription
+- **Do multilingual transcription** — supports 99+ languages with auto-detection
+- **Transcribe a batch of files in different languages** — `--language-map` assigns a different language per file
+- **Transcribe multilingual audio** — `--multilingual` for mixed-language audio
+- **Transcribe audio with specific terms** — use `--initial-prompt` for jargon-heavy content or any other terms to look out for
+- **Preprocess noisy audio (before transcription)** — `--normalize` and `--denoise` before transcription
 - **Stream output** — `--stream` shows segments as they're transcribed
 - **Clip time ranges** — `--clip-timestamps` to transcribe specific sections
 - **Search the transcript** — `--search "term"` finds all timestamps where a word/phrase appears
@@ -56,9 +86,10 @@ Use this skill when you need to:
 
 **⚠️ Agent guidance — keep invocations minimal:**
 
-*Core rule: default command (`./scripts/transcribe audio.mp3`) is the fastest path — add flags only when the user explicitly asks for that capability.*
+_CORE RULE: default command (`./scripts/transcribe audio.mp3`) is the fastest path — add flags only when the user explicitly asks for that capability._
 
 **Transcription:**
+
 - Only add `--diarize` if the user asks "who said what" / "identify speakers" / "label speakers"
 - Only add `--format srt/vtt/ass/lrc/ttml` if the user asks for subtitles/captions in that format
 - Only add `--format csv` if the user asks for CSV or spreadsheet output
@@ -94,12 +125,14 @@ Use this skill when you need to:
 - `--diarize` adds ~20-30s on top of that
 
 **Search:**
+
 - Only add `--search "term"` when the user asks to find/locate/search for a specific word or phrase in audio
 - `--search` **replaces** the normal transcript output — it prints only matching segments with timestamps
 - Add `--search-fuzzy` only when the user mentions approximate/partial matching or typos
 - To save search results to a file, use `-o results.txt`
 
 **Chapter detection:**
+
 - Only add `--detect-chapters` when the user asks for chapters, sections, a table of contents, or "where does the topic change"
 - Default `--chapter-gap 8` (8-second silence = new chapter) works for most podcasts/lectures; tune down for dense content
 - `--chapter-format youtube` (default) outputs YouTube-ready timestamps; use `json` for programmatic use
@@ -108,21 +141,25 @@ Use this skill when you need to:
 - **Batch mode limitation:** `--chapters-file` takes a single path — in batch mode, each file's chapters overwrite the previous. For batch chapter detection, omit `--chapters-file` (chapters print to stdout under `=== CHAPTERS (N) ===`) or use a separate run per file
 
 **Speaker audio export:**
+
 - Only add `--export-speakers DIR` when the user explicitly asks to save each speaker's audio separately
 - Always pair with `--diarize` — it silently skips if no speaker labels are present
 - Requires ffmpeg; outputs `SPEAKER_1.wav`, `SPEAKER_2.wav`, etc. (or real names if `--speaker-names` is set)
 
 **Language map:**
+
 - Only add `--language-map` in batch mode when the user has confirmed different languages across files
 - Inline format: `"interview*.mp3=en,lecture*.mp3=fr"` — fnmatch globs on filename
 - JSON file format: `@/path/to/map.json` where the file is `{"pattern": "lang_code"}`
 
 **RSS / Podcast:**
+
 - Only add `--rss URL` when the user provides a podcast RSS feed URL
 - Default fetches 5 newest episodes; `--rss-latest 0` for all; `--skip-existing` to resume safely
 - **Always use `-o <dir>`** with `--rss` — without it, all episode transcripts print to stdout concatenated, which is hard to use; each episode gets its own file when `-o <dir>` is set
 
 **Output format for agent relay:**
+
 - **Search results** (`--search`) → print directly to user; output is human-readable
 - **Chapter output** → if no `--chapters-file`, chapters appear in stdout under `=== CHAPTERS (N) ===` header after the transcript; with `--format json`, chapters are also embedded in the JSON under `"chapters"` key
 - **Subtitle formats** (SRT, VTT, ASS, LRC, TTML) → always write to `-o` file; tell the user the output path, never paste raw subtitle content
@@ -137,6 +174,7 @@ Use this skill when you need to:
 - **ETA** is printed automatically to stderr for batch jobs; no action needed
 
 **When NOT to use:**
+
 - Cloud-only environments without local compute
 - Files <10 seconds where API call latency doesn't matter
 
@@ -145,87 +183,87 @@ This skill covers everything whisperx does — diarization (`--diarize`), word-l
 
 ## Quick Reference
 
-| Task | Command | Notes |
-|------|---------|-------|
-| **Basic transcription** | `./scripts/transcribe audio.mp3` | Batched inference, VAD on, distil-large-v3.5 |
-| **SRT subtitles** | `./scripts/transcribe audio.mp3 --format srt -o subs.srt` | Word timestamps auto-enabled |
-| **VTT subtitles** | `./scripts/transcribe audio.mp3 --format vtt -o subs.vtt` | WebVTT format |
-| **Word timestamps** | `./scripts/transcribe audio.mp3 --word-timestamps --format srt` | wav2vec2 aligned (~10ms) |
-| **Speaker diarization** | `./scripts/transcribe audio.mp3 --diarize` | Requires pyannote.audio |
-| **Translate → English** | `./scripts/transcribe audio.mp3 --translate` | Any language → English |
-| **Stream output** | `./scripts/transcribe audio.mp3 --stream` | Live segments as transcribed |
-| **Clip time range** | `./scripts/transcribe audio.mp3 --clip-timestamps "30,60"` | Only 30s–60s |
-| **Denoise + normalize** | `./scripts/transcribe audio.mp3 --denoise --normalize` | Clean up noisy audio first |
-| **Reduce hallucination** | `./scripts/transcribe audio.mp3 --hallucination-silence-threshold 1.0` | Skip hallucinated silence |
-| **YouTube/URL** | `./scripts/transcribe https://youtube.com/watch?v=...` | Auto-downloads via yt-dlp |
-| **Batch process** | `./scripts/transcribe *.mp3 -o ./transcripts/` | Output to directory |
-| **Batch with skip** | `./scripts/transcribe *.mp3 --skip-existing -o ./out/` | Resume interrupted batches |
-| **Domain terms** | `./scripts/transcribe audio.mp3 --initial-prompt 'Kubernetes gRPC'` | Boost rare terminology |
-| **Hotwords boost** | `./scripts/transcribe audio.mp3 --hotwords 'JIRA Kubernetes'` | Bias decoder toward specific words |
-| **Prefix conditioning** | `./scripts/transcribe audio.mp3 --prefix 'Good morning,'` | Seed the first segment with known opening words |
-| **Pin model version** | `./scripts/transcribe audio.mp3 --revision v1.2.0` | Reproducible transcription with a pinned revision |
-| **Debug library logs** | `./scripts/transcribe audio.mp3 --log-level debug` | Show faster_whisper internal logs |
-| **Turbo model** | `./scripts/transcribe audio.mp3 -m turbo` | Alias for large-v3-turbo |
-| **Faster English** | `./scripts/transcribe audio.mp3 --model distil-medium.en -l en` | English-only, 6.8x faster |
-| **Maximum accuracy** | `./scripts/transcribe audio.mp3 --model large-v3 --beam-size 10` | Full model |
-| **JSON output** | `./scripts/transcribe audio.mp3 --format json -o out.json` | Programmatic access with stats |
-| **Filter noise** | `./scripts/transcribe audio.mp3 --min-confidence 0.6` | Drop low-confidence segments |
-| **Hybrid quantization** | `./scripts/transcribe audio.mp3 --compute-type int8_float16` | Save VRAM, minimal quality loss |
-| **Reduce batch size** | `./scripts/transcribe audio.mp3 --batch-size 4` | If OOM on GPU |
-| **TSV output** | `./scripts/transcribe audio.mp3 --format tsv -o out.tsv` | OpenAI Whisper–compatible TSV |
-| **Fix hallucinations** | `./scripts/transcribe audio.mp3 --temperature 0.0 --no-speech-threshold 0.8` | Lock temperature + skip silence |
-| **Tune VAD sensitivity** | `./scripts/transcribe audio.mp3 --vad-threshold 0.6 --min-silence-duration 500` | Tighter speech detection |
-| **Known speaker count** | `./scripts/transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 3` | Constrain diarization |
-| **Subtitle word wrapping** | `./scripts/transcribe audio.mp3 --format srt --word-timestamps --max-words-per-line 8` | Split long cues |
-| **Private/gated model** | `./scripts/transcribe audio.mp3 --hf-token hf_xxx` | Pass token directly |
-| **Show version** | `./scripts/transcribe --version` | Print faster-whisper version |
-| **Upgrade in-place** | `./setup.sh --update` | Upgrade without full reinstall |
-| **System check** | `./setup.sh --check` | Verify GPU, Python, ffmpeg, venv, yt-dlp, pyannote |
-| **Detect language only** | `./scripts/transcribe audio.mp3 --detect-language-only` | Fast language ID, no transcription |
-| **Detect language JSON** | `./scripts/transcribe audio.mp3 --detect-language-only --format json` | Machine-readable language detection |
-| **LRC subtitles** | `./scripts/transcribe audio.mp3 --format lrc -o lyrics.lrc` | Timed lyrics format for music players |
-| **ASS subtitles** | `./scripts/transcribe audio.mp3 --format ass -o subtitles.ass` | Advanced SubStation Alpha (Aegisub, mpv, VLC) |
-| **Merge sentences** | `./scripts/transcribe audio.mp3 --format srt --merge-sentences` | Join fragments into sentence chunks |
-| **Stats sidecar** | `./scripts/transcribe audio.mp3 --stats-file stats.json` | Write perf stats JSON after transcription |
-| **Batch stats** | `./scripts/transcribe *.mp3 --stats-file ./stats/` | One stats file per input in dir |
-| **Template naming** | `./scripts/transcribe audio.mp3 -o ./out/ --output-template "{stem}_{lang}.{ext}"` | Custom batch output filenames |
-| **Stdin input** | `ffmpeg -i input.mp4 -f wav - \| ./scripts/transcribe -` | Pipe audio directly from stdin |
-| **Custom model dir** | `./scripts/transcribe audio.mp3 --model-dir ~/my-models` | Custom HuggingFace cache dir |
-| **Local model** | `./scripts/transcribe audio.mp3 -m ./my-model-ct2` | CTranslate2 model dir |
-| **HTML transcript** | `./scripts/transcribe audio.mp3 --format html -o out.html` | Confidence-colored |
-| **Burn subtitles** | `./scripts/transcribe video.mp4 --burn-in output.mp4` | Requires ffmpeg + video input |
-| **Name speakers** | `./scripts/transcribe audio.mp3 --diarize --speaker-names "Alice,Bob"` | Replaces SPEAKER_1/2 |
-| **Filter hallucinations** | `./scripts/transcribe audio.mp3 --filter-hallucinations` | Removes artifacts |
-| **Keep temp files** | `./scripts/transcribe https://... --keep-temp` | For URL re-processing |
-| **Parallel batch** | `./scripts/transcribe *.mp3 --parallel 4 -o ./out/` | CPU multi-file |
-| **RTX 3070 recommended** | `./scripts/transcribe audio.mp3 --compute-type int8_float16` | Saves ~1GB VRAM, minimal quality loss |
-| **CPU thread count** | `./scripts/transcribe audio.mp3 --threads 8` | Force CPU thread count (default: auto) |
-| **Podcast RSS (latest 5)** | `./scripts/transcribe --rss https://feeds.example.com/podcast.xml` | Downloads & transcribes newest 5 episodes |
-| **Podcast RSS (all episodes)** | `./scripts/transcribe --rss https://... --rss-latest 0 -o ./episodes/` | All episodes, one file each |
-| **Podcast + SRT subtitles** | `./scripts/transcribe --rss https://... --format srt -o ./subs/` | Subtitle all episodes |
-| **Retry on failure** | `./scripts/transcribe *.mp3 --retries 3 -o ./out/` | Retry up to 3× with backoff on error |
-| **CSV output** | `./scripts/transcribe audio.mp3 --format csv -o out.csv` | Spreadsheet-ready with header row; properly quoted |
-| **CSV with speakers** | `./scripts/transcribe audio.mp3 --diarize --format csv -o out.csv` | Adds speaker column |
-| **Language map (inline)** | `./scripts/transcribe *.mp3 --language-map "interview*.mp3=en,lecture.wav=fr"` | Per-file language in batch |
-| **Language map (JSON)** | `./scripts/transcribe *.mp3 --language-map @langs.json` | JSON file: {"pattern": "lang"} |
-| **Batch with ETA** | `./scripts/transcribe *.mp3 -o ./out/` | Automatic ETA shown for each file in batch |
-| **TTML subtitles** | `./scripts/transcribe audio.mp3 --format ttml -o subtitles.ttml` | Broadcast-standard DFXP/TTML (Netflix, BBC, Amazon) |
-| **TTML with speaker labels** | `./scripts/transcribe audio.mp3 --diarize --format ttml -o subtitles.ttml` | Speaker-labeled TTML |
-| **Search transcript** | `./scripts/transcribe audio.mp3 --search "keyword"` | Find timestamps where keyword appears |
-| **Search to file** | `./scripts/transcribe audio.mp3 --search "keyword" -o results.txt` | Save search results |
-| **Fuzzy search** | `./scripts/transcribe audio.mp3 --search "aproximate" --search-fuzzy` | Approximate/partial matching |
-| **Detect chapters** | `./scripts/transcribe audio.mp3 --detect-chapters` | Auto-detect chapters from silence gaps |
-| **Chapter gap tuning** | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-gap 5` | Chapters on gaps ≥5s (default: 8s) |
-| **Chapters to file** | `./scripts/transcribe audio.mp3 --detect-chapters --chapters-file ch.txt` | Save YouTube-format chapter list |
-| **Chapters JSON** | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-format json` | Machine-readable chapter list |
-| **Export speaker audio** | `./scripts/transcribe audio.mp3 --diarize --export-speakers ./speakers/` | Save each speaker's audio to separate WAV files |
-| **Multi-format output** | `./scripts/transcribe audio.mp3 --format srt,text -o ./out/` | Write SRT + TXT in one pass |
-| **Remove filler words** | `./scripts/transcribe audio.mp3 --clean-filler` | Strip um/uh/er/ah/hmm and discourse markers |
-| **Left channel only** | `./scripts/transcribe audio.mp3 --channel left` | Extract left stereo channel before transcribing |
-| **Right channel only** | `./scripts/transcribe audio.mp3 --channel right` | Extract right stereo channel |
-| **Max chars per line** | `./scripts/transcribe audio.mp3 --format srt --max-chars-per-line 42` | Character-based subtitle wrapping |
-| **Detect paragraphs** | `./scripts/transcribe audio.mp3 --detect-paragraphs` | Insert paragraph breaks in text output |
-| **Paragraph gap tuning** | `./scripts/transcribe audio.mp3 --detect-paragraphs --paragraph-gap 5.0` | Tune gap threshold (default 3.0s) |
+| Task                           | Command                                                                                | Notes                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Basic transcription**        | `./scripts/transcribe audio.mp3`                                                       | Batched inference, VAD on, distil-large-v3.5        |
+| **SRT subtitles**              | `./scripts/transcribe audio.mp3 --format srt -o subs.srt`                              | Word timestamps auto-enabled                        |
+| **VTT subtitles**              | `./scripts/transcribe audio.mp3 --format vtt -o subs.vtt`                              | WebVTT format                                       |
+| **Word timestamps**            | `./scripts/transcribe audio.mp3 --word-timestamps --format srt`                        | wav2vec2 aligned (~10ms)                            |
+| **Speaker diarization**        | `./scripts/transcribe audio.mp3 --diarize`                                             | Requires pyannote.audio                             |
+| **Translate → English**        | `./scripts/transcribe audio.mp3 --translate`                                           | Any language → English                              |
+| **Stream output**              | `./scripts/transcribe audio.mp3 --stream`                                              | Live segments as transcribed                        |
+| **Clip time range**            | `./scripts/transcribe audio.mp3 --clip-timestamps "30,60"`                             | Only 30s–60s                                        |
+| **Denoise + normalize**        | `./scripts/transcribe audio.mp3 --denoise --normalize`                                 | Clean up noisy audio first                          |
+| **Reduce hallucination**       | `./scripts/transcribe audio.mp3 --hallucination-silence-threshold 1.0`                 | Skip hallucinated silence                           |
+| **YouTube/URL**                | `./scripts/transcribe https://youtube.com/watch?v=...`                                 | Auto-downloads via yt-dlp                           |
+| **Batch process**              | `./scripts/transcribe *.mp3 -o ./transcripts/`                                         | Output to directory                                 |
+| **Batch with skip**            | `./scripts/transcribe *.mp3 --skip-existing -o ./out/`                                 | Resume interrupted batches                          |
+| **Domain terms**               | `./scripts/transcribe audio.mp3 --initial-prompt 'Kubernetes gRPC'`                    | Boost rare terminology                              |
+| **Hotwords boost**             | `./scripts/transcribe audio.mp3 --hotwords 'JIRA Kubernetes'`                          | Bias decoder toward specific words                  |
+| **Prefix conditioning**        | `./scripts/transcribe audio.mp3 --prefix 'Good morning,'`                              | Seed the first segment with known opening words     |
+| **Pin model version**          | `./scripts/transcribe audio.mp3 --revision v1.2.0`                                     | Reproducible transcription with a pinned revision   |
+| **Debug library logs**         | `./scripts/transcribe audio.mp3 --log-level debug`                                     | Show faster_whisper internal logs                   |
+| **Turbo model**                | `./scripts/transcribe audio.mp3 -m turbo`                                              | Alias for large-v3-turbo                            |
+| **Faster English**             | `./scripts/transcribe audio.mp3 --model distil-medium.en -l en`                        | English-only, 6.8x faster                           |
+| **Maximum accuracy**           | `./scripts/transcribe audio.mp3 --model large-v3 --beam-size 10`                       | Full model                                          |
+| **JSON output**                | `./scripts/transcribe audio.mp3 --format json -o out.json`                             | Programmatic access with stats                      |
+| **Filter noise**               | `./scripts/transcribe audio.mp3 --min-confidence 0.6`                                  | Drop low-confidence segments                        |
+| **Hybrid quantization**        | `./scripts/transcribe audio.mp3 --compute-type int8_float16`                           | Save VRAM, minimal quality loss                     |
+| **Reduce batch size**          | `./scripts/transcribe audio.mp3 --batch-size 4`                                        | If OOM on GPU                                       |
+| **TSV output**                 | `./scripts/transcribe audio.mp3 --format tsv -o out.tsv`                               | OpenAI Whisper–compatible TSV                       |
+| **Fix hallucinations**         | `./scripts/transcribe audio.mp3 --temperature 0.0 --no-speech-threshold 0.8`           | Lock temperature + skip silence                     |
+| **Tune VAD sensitivity**       | `./scripts/transcribe audio.mp3 --vad-threshold 0.6 --min-silence-duration 500`        | Tighter speech detection                            |
+| **Known speaker count**        | `./scripts/transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 3`         | Constrain diarization                               |
+| **Subtitle word wrapping**     | `./scripts/transcribe audio.mp3 --format srt --word-timestamps --max-words-per-line 8` | Split long cues                                     |
+| **Private/gated model**        | `./scripts/transcribe audio.mp3 --hf-token hf_xxx`                                     | Pass token directly                                 |
+| **Show version**               | `./scripts/transcribe --version`                                                       | Print faster-whisper version                        |
+| **Upgrade in-place**           | `./setup.sh --update`                                                                  | Upgrade without full reinstall                      |
+| **System check**               | `./setup.sh --check`                                                                   | Verify GPU, Python, ffmpeg, venv, yt-dlp, pyannote  |
+| **Detect language only**       | `./scripts/transcribe audio.mp3 --detect-language-only`                                | Fast language ID, no transcription                  |
+| **Detect language JSON**       | `./scripts/transcribe audio.mp3 --detect-language-only --format json`                  | Machine-readable language detection                 |
+| **LRC subtitles**              | `./scripts/transcribe audio.mp3 --format lrc -o lyrics.lrc`                            | Timed lyrics format for music players               |
+| **ASS subtitles**              | `./scripts/transcribe audio.mp3 --format ass -o subtitles.ass`                         | Advanced SubStation Alpha (Aegisub, mpv, VLC)       |
+| **Merge sentences**            | `./scripts/transcribe audio.mp3 --format srt --merge-sentences`                        | Join fragments into sentence chunks                 |
+| **Stats sidecar**              | `./scripts/transcribe audio.mp3 --stats-file stats.json`                               | Write perf stats JSON after transcription           |
+| **Batch stats**                | `./scripts/transcribe *.mp3 --stats-file ./stats/`                                     | One stats file per input in dir                     |
+| **Template naming**            | `./scripts/transcribe audio.mp3 -o ./out/ --output-template "{stem}_{lang}.{ext}"`     | Custom batch output filenames                       |
+| **Stdin input**                | `ffmpeg -i input.mp4 -f wav - \| ./scripts/transcribe -`                               | Pipe audio directly from stdin                      |
+| **Custom model dir**           | `./scripts/transcribe audio.mp3 --model-dir ~/my-models`                               | Custom HuggingFace cache dir                        |
+| **Local model**                | `./scripts/transcribe audio.mp3 -m ./my-model-ct2`                                     | CTranslate2 model dir                               |
+| **HTML transcript**            | `./scripts/transcribe audio.mp3 --format html -o out.html`                             | Confidence-colored                                  |
+| **Burn subtitles**             | `./scripts/transcribe video.mp4 --burn-in output.mp4`                                  | Requires ffmpeg + video input                       |
+| **Name speakers**              | `./scripts/transcribe audio.mp3 --diarize --speaker-names "Alice,Bob"`                 | Replaces SPEAKER_1/2                                |
+| **Filter hallucinations**      | `./scripts/transcribe audio.mp3 --filter-hallucinations`                               | Removes artifacts                                   |
+| **Keep temp files**            | `./scripts/transcribe https://... --keep-temp`                                         | For URL re-processing                               |
+| **Parallel batch**             | `./scripts/transcribe *.mp3 --parallel 4 -o ./out/`                                    | CPU multi-file                                      |
+| **RTX 3070 recommended**       | `./scripts/transcribe audio.mp3 --compute-type int8_float16`                           | Saves ~1GB VRAM, minimal quality loss               |
+| **CPU thread count**           | `./scripts/transcribe audio.mp3 --threads 8`                                           | Force CPU thread count (default: auto)              |
+| **Podcast RSS (latest 5)**     | `./scripts/transcribe --rss https://feeds.example.com/podcast.xml`                     | Downloads & transcribes newest 5 episodes           |
+| **Podcast RSS (all episodes)** | `./scripts/transcribe --rss https://... --rss-latest 0 -o ./episodes/`                 | All episodes, one file each                         |
+| **Podcast + SRT subtitles**    | `./scripts/transcribe --rss https://... --format srt -o ./subs/`                       | Subtitle all episodes                               |
+| **Retry on failure**           | `./scripts/transcribe *.mp3 --retries 3 -o ./out/`                                     | Retry up to 3× with backoff on error                |
+| **CSV output**                 | `./scripts/transcribe audio.mp3 --format csv -o out.csv`                               | Spreadsheet-ready with header row; properly quoted  |
+| **CSV with speakers**          | `./scripts/transcribe audio.mp3 --diarize --format csv -o out.csv`                     | Adds speaker column                                 |
+| **Language map (inline)**      | `./scripts/transcribe *.mp3 --language-map "interview*.mp3=en,lecture.wav=fr"`         | Per-file language in batch                          |
+| **Language map (JSON)**        | `./scripts/transcribe *.mp3 --language-map @langs.json`                                | JSON file: {"pattern": "lang"}                      |
+| **Batch with ETA**             | `./scripts/transcribe *.mp3 -o ./out/`                                                 | Automatic ETA shown for each file in batch          |
+| **TTML subtitles**             | `./scripts/transcribe audio.mp3 --format ttml -o subtitles.ttml`                       | Broadcast-standard DFXP/TTML (Netflix, BBC, Amazon) |
+| **TTML with speaker labels**   | `./scripts/transcribe audio.mp3 --diarize --format ttml -o subtitles.ttml`             | Speaker-labeled TTML                                |
+| **Search transcript**          | `./scripts/transcribe audio.mp3 --search "keyword"`                                    | Find timestamps where keyword appears               |
+| **Search to file**             | `./scripts/transcribe audio.mp3 --search "keyword" -o results.txt`                     | Save search results                                 |
+| **Fuzzy search**               | `./scripts/transcribe audio.mp3 --search "aproximate" --search-fuzzy`                  | Approximate/partial matching                        |
+| **Detect chapters**            | `./scripts/transcribe audio.mp3 --detect-chapters`                                     | Auto-detect chapters from silence gaps              |
+| **Chapter gap tuning**         | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-gap 5`                     | Chapters on gaps ≥5s (default: 8s)                  |
+| **Chapters to file**           | `./scripts/transcribe audio.mp3 --detect-chapters --chapters-file ch.txt`              | Save YouTube-format chapter list                    |
+| **Chapters JSON**              | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-format json`               | Machine-readable chapter list                       |
+| **Export speaker audio**       | `./scripts/transcribe audio.mp3 --diarize --export-speakers ./speakers/`               | Save each speaker's audio to separate WAV files     |
+| **Multi-format output**        | `./scripts/transcribe audio.mp3 --format srt,text -o ./out/`                           | Write SRT + TXT in one pass                         |
+| **Remove filler words**        | `./scripts/transcribe audio.mp3 --clean-filler`                                        | Strip um/uh/er/ah/hmm and discourse markers         |
+| **Left channel only**          | `./scripts/transcribe audio.mp3 --channel left`                                        | Extract left stereo channel before transcribing     |
+| **Right channel only**         | `./scripts/transcribe audio.mp3 --channel right`                                       | Extract right stereo channel                        |
+| **Max chars per line**         | `./scripts/transcribe audio.mp3 --format srt --max-chars-per-line 42`                  | Character-based subtitle wrapping                   |
+| **Detect paragraphs**          | `./scripts/transcribe audio.mp3 --detect-paragraphs`                                   | Insert paragraph breaks in text output              |
+| **Paragraph gap tuning**       | `./scripts/transcribe audio.mp3 --detect-paragraphs --paragraph-gap 5.0`               | Tune gap threshold (default 3.0s)                   |
 
 ## Model Selection
 
@@ -261,23 +299,25 @@ digraph model_selection {
 ### Model Table
 
 #### Standard Models (Full Whisper)
-| Model | Size | Speed | Accuracy | Use Case |
-|-------|------|-------|----------|----------|
-| `tiny` / `tiny.en` | 39M | Fastest | Basic | Quick drafts |
-| `base` / `base.en` | 74M | Very fast | Good | General use |
-| `small` / `small.en` | 244M | Fast | Better | Most tasks |
-| `medium` / `medium.en` | 769M | Moderate | High | Quality transcription |
-| `large-v1/v2/v3` | 1.5GB | Slower | Best | Maximum accuracy |
-| `large-v3-turbo` | 809M | Fast | Excellent | High accuracy (slower than distil) |
+
+| Model                  | Size  | Speed     | Accuracy  | Use Case                           |
+| ---------------------- | ----- | --------- | --------- | ---------------------------------- |
+| `tiny` / `tiny.en`     | 39M   | Fastest   | Basic     | Quick drafts                       |
+| `base` / `base.en`     | 74M   | Very fast | Good      | General use                        |
+| `small` / `small.en`   | 244M  | Fast      | Better    | Most tasks                         |
+| `medium` / `medium.en` | 769M  | Moderate  | High      | Quality transcription              |
+| `large-v1/v2/v3`       | 1.5GB | Slower    | Best      | Maximum accuracy                   |
+| `large-v3-turbo`       | 809M  | Fast      | Excellent | High accuracy (slower than distil) |
 
 #### Distilled Models (~6x Faster, ~1% WER difference)
-| Model | Size | Speed vs Standard | Accuracy | Use Case |
-|-------|------|-------------------|----------|----------|
-| **`distil-large-v3.5`** | 756M | ~6.3x faster | 7.08% WER | **Default, best balance** |
-| `distil-large-v3` | 756M | ~6.3x faster | 7.53% WER | Previous default |
-| `distil-large-v2` | 756M | ~5.8x faster | 10.1% WER | Fallback |
-| `distil-medium.en` | 394M | ~6.8x faster | 11.1% WER | English-only, resource-constrained |
-| `distil-small.en` | 166M | ~5.6x faster | 12.1% WER | Mobile/edge devices |
+
+| Model                   | Size | Speed vs Standard | Accuracy  | Use Case                           |
+| ----------------------- | ---- | ----------------- | --------- | ---------------------------------- |
+| **`distil-large-v3.5`** | 756M | ~6.3x faster      | 7.08% WER | **Default, best balance**          |
+| `distil-large-v3`       | 756M | ~6.3x faster      | 7.53% WER | Previous default                   |
+| `distil-large-v2`       | 756M | ~5.8x faster      | 10.1% WER | Fallback                           |
+| `distil-medium.en`      | 394M | ~6.8x faster      | 11.1% WER | English-only, resource-constrained |
+| `distil-small.en`       | 166M | ~5.6x faster      | 12.1% WER | Mobile/edge devices                |
 
 `.en` models are English-only and slightly faster/better for English content.
 
@@ -288,11 +328,13 @@ digraph model_selection {
 WhisperModel accepts local CTranslate2 model directories and HuggingFace repo names — no code changes needed.
 
 ### Load a local CTranslate2 model
+
 ```bash
 ./scripts/transcribe audio.mp3 --model /path/to/my-model-ct2
 ```
 
 ### Convert a HuggingFace model to CTranslate2
+
 ```bash
 pip install ctranslate2
 ct2-transformers-converter \
@@ -304,12 +346,15 @@ ct2-transformers-converter \
 ```
 
 ### Load a model by HuggingFace repo name (auto-downloads)
+
 ```bash
 ./scripts/transcribe audio.mp3 --model username/whisper-large-v3-ct2
 ```
 
 ### Custom model cache directory
+
 By default, models are cached in `~/.cache/huggingface/`. Use `--model-dir` to override:
+
 ```bash
 ./scripts/transcribe audio.mp3 --model-dir ~/my-models
 ```
@@ -317,6 +362,7 @@ By default, models are cached in `~/.cache/huggingface/`. Use `--model-dir` to o
 ## Setup
 
 ### Linux / macOS / WSL2
+
 ```bash
 # Base install (creates venv, installs deps, auto-detects GPU)
 ./setup.sh
@@ -326,6 +372,7 @@ By default, models are cached in `~/.cache/huggingface/`. Use `--model-dir` to o
 ```
 
 Requirements:
+
 - Python 3.10+
 - ffmpeg is **not required** for basic transcription — PyAV (bundled with faster-whisper) handles audio decoding. ffmpeg is only needed for `--burn-in`, `--normalize`, and `--denoise`.
 - Optional: yt-dlp (for URL/YouTube input)
@@ -333,24 +380,24 @@ Requirements:
 
 ### Platform Support
 
-| Platform | Acceleration | Speed |
-|----------|-------------|-------|
-| **Linux + NVIDIA GPU** | CUDA | ~20x realtime 🚀 |
-| **WSL2 + NVIDIA GPU** | CUDA | ~20x realtime 🚀 |
-| macOS Apple Silicon | CPU* | ~3-5x realtime |
-| macOS Intel | CPU | ~1-2x realtime |
-| Linux (no GPU) | CPU | ~1x realtime |
+| Platform               | Acceleration | Speed            |
+| ---------------------- | ------------ | ---------------- |
+| **Linux + NVIDIA GPU** | CUDA         | ~20x realtime 🚀 |
+| **WSL2 + NVIDIA GPU**  | CUDA         | ~20x realtime 🚀 |
+| macOS Apple Silicon    | CPU\*        | ~3-5x realtime   |
+| macOS Intel            | CPU          | ~1-2x realtime   |
+| Linux (no GPU)         | CPU          | ~1x realtime     |
 
-*faster-whisper uses CTranslate2 which is CPU-only on macOS, but Apple Silicon is fast enough for practical use.
+\*faster-whisper uses CTranslate2 which is CPU-only on macOS, but Apple Silicon is fast enough for practical use.
 
 ### GPU Support (IMPORTANT!)
 
 The setup script auto-detects your GPU and installs PyTorch with CUDA. **Always use GPU if available** — CPU transcription is extremely slow.
 
-| Hardware | Speed | 9-min video |
-|----------|-------|-------------|
-| RTX 3070 (GPU) | ~20x realtime | ~27 sec |
-| CPU (int8) | ~0.3x realtime | ~30 min |
+| Hardware       | Speed          | 9-min video |
+| -------------- | -------------- | ----------- |
+| RTX 3070 (GPU) | ~20x realtime  | ~27 sec     |
+| CPU (int8)     | ~0.3x realtime | ~30 min     |
 
 > **RTX 3070 tip**: Use `--compute-type int8_float16` for hybrid quantization — saves ~1GB VRAM with minimal quality loss. Ideal for running diarization alongside transcription.
 
@@ -595,7 +642,9 @@ Utility:
 ## Output Formats
 
 ### Text (default)
+
 Plain transcript text. With `--diarize`, speaker labels are inserted:
+
 ```
 [SPEAKER_1]
  Hello, welcome to the meeting.
@@ -604,7 +653,9 @@ Plain transcript text. With `--diarize`, speaker labels are inserted:
 ```
 
 ### JSON (`--format json`)
+
 Full metadata including segments, timestamps, language detection, and performance stats:
+
 ```json
 {
   "file": "audio.mp3",
@@ -622,7 +673,9 @@ Full metadata including segments, timestamps, language detection, and performanc
 ```
 
 ### SRT (`--format srt`)
+
 Standard subtitle format for video players:
+
 ```
 1
 00:00:00,000 --> 00:00:02,500
@@ -634,7 +687,9 @@ Standard subtitle format for video players:
 ```
 
 ### VTT (`--format vtt`)
+
 WebVTT format for web video players:
+
 ```
 WEBVTT
 
@@ -648,15 +703,20 @@ WEBVTT
 ```
 
 ### TSV (`--format tsv`)
+
 Tab-separated values, OpenAI Whisper–compatible. Columns: `start_ms`, `end_ms`, `text`:
+
 ```
 0	2500	Hello, welcome to the meeting.
 2800	4200	Thanks for having me.
 ```
+
 Useful for piping into other tools or spreadsheets. No header row.
 
 ### ASS/SSA (`--format ass`)
+
 Advanced SubStation Alpha format — supported by Aegisub, VLC, mpv, MPC-HC, and most video editors. Offers richer styling than SRT (font, size, color, position) via the `[V4+ Styles]` section:
+
 ```
 [Script Info]
 ScriptType: v4.00+
@@ -670,19 +730,25 @@ Format: Layer, Start, End, Style, Name, ..., Text
 Dialogue: 0,0:00:00.00,0:00:02.50,Default,,[SPEAKER_1] Hello, welcome.
 Dialogue: 0,0:00:02.80,0:00:04.20,Default,,[SPEAKER_2] Thanks for having me.
 ```
+
 Timestamps use `H:MM:SS.cc` (centiseconds). Edit the `[V4+ Styles]` block in Aegisub to customise font, color, and position without re-transcribing.
 
 ### LRC (`--format lrc`)
+
 Timed lyrics format used by music players (e.g., Foobar2000, VLC, AIMP). Timestamps use `[mm:ss.xx]` where `xx` = centiseconds:
+
 ```
 [00:00.50]Hello, welcome to the meeting.
 [00:02.80]Thanks for having me.
 ```
+
 With diarization, speaker labels are included:
+
 ```
 [00:00.50][SPEAKER_1] Hello, welcome to the meeting.
 [00:02.80][SPEAKER_2] Thanks for having me.
 ```
+
 Default file extension: `.lrc`. Useful for music transcription, karaoke, and any workflow requiring timed text with music-player compatibility.
 
 ## Speaker Diarization
@@ -690,17 +756,20 @@ Default file extension: `.lrc`. Useful for music transcription, karaoke, and any
 Identifies who spoke when using [pyannote.audio](https://github.com/pyannote/pyannote-audio).
 
 **Setup:**
+
 ```bash
 ./setup.sh --diarize
 ```
 
 **Requirements:**
+
 - HuggingFace token at `~/.cache/huggingface/token` (`huggingface-cli login`)
 - Accepted model agreements:
   - https://hf.co/pyannote/speaker-diarization-3.1
   - https://hf.co/pyannote/segmentation-3.0
 
 **Usage:**
+
 ```bash
 # Basic diarization (text output)
 ./scripts/transcribe meeting.wav --diarize
@@ -775,6 +844,7 @@ Process multiple files at once with glob patterns, directories, or multiple path
 When outputting to a directory, files are named `{input-stem}.{ext}` (e.g., `audio.mp3` → `audio.srt`).
 
 Batch mode prints a summary after all files complete:
+
 ```
 📊 Done: 12 files, 3h24m audio in 10m15s (19.9× realtime)
 ```
@@ -784,7 +854,9 @@ Batch mode prints a summary after all files complete:
 End-to-end pipelines for common use cases.
 
 ### Podcast Transcription Pipeline
+
 Fetch and transcribe the latest 5 episodes from any podcast RSS feed:
+
 ```bash
 # Transcribe latest 5 episodes → one .txt per episode
 ./scripts/transcribe --rss https://feeds.megaphone.fm/mypodcast -o ./transcripts/
@@ -800,7 +872,9 @@ Fetch and transcribe the latest 5 episodes from any podcast RSS feed:
 ```
 
 ### Meeting Notes Pipeline
+
 Transcribe a meeting recording with speaker labels, then output clean text:
+
 ```bash
 # Diarize + name speakers (replace SPEAKER_1/2 with real names)
 ./scripts/transcribe meeting.wav --diarize --speaker-names "Alice,Bob" -o meeting.txt
@@ -813,7 +887,9 @@ Transcribe a meeting recording with speaker labels, then output clean text:
 ```
 
 ### Video Subtitle Pipeline
+
 Generate ready-to-use subtitles for a video file:
+
 ```bash
 # SRT subtitles with sentence merging (better readability)
 ./scripts/transcribe video.mp4 --format srt --merge-sentences -o subtitles.srt
@@ -826,7 +902,9 @@ Generate ready-to-use subtitles for a video file:
 ```
 
 ### YouTube Batch Pipeline
+
 Transcribe multiple YouTube videos at once:
+
 ```bash
 # One-liner: transcribe a playlist video + output SRT
 ./scripts/transcribe "https://youtube.com/watch?v=abc123" --format srt -o subs.srt
@@ -839,7 +917,9 @@ cat urls.txt | xargs ./scripts/transcribe -o ./transcripts/
 ```
 
 ### Noisy Audio Pipeline
+
 Clean up poor-quality recordings before transcribing:
+
 ```bash
 # Denoise + normalize, then transcribe
 ./scripts/transcribe interview.mp3 --denoise --normalize -o interview.txt
@@ -849,7 +929,9 @@ Clean up poor-quality recordings before transcribing:
 ```
 
 ### Batch Recovery Pipeline
+
 Process a large folder with retries — safe to re-run after failures:
+
 ```bash
 # Retry each failed file up to 3 times, skip already-done
 ./scripts/transcribe ./recordings/ --skip-existing --retries 3 -o ./transcripts/
@@ -863,11 +945,13 @@ Process a large folder with retries — safe to re-run after failures:
 [speaches](https://github.com/speaches-ai/speaches) runs faster-whisper as an OpenAI-compatible `/v1/audio/transcriptions` endpoint — drop-in replacement for OpenAI Whisper API with streaming, Docker support, and live transcription.
 
 ### Quick start (Docker)
+
 ```bash
 docker run --gpus all -p 8000:8000 ghcr.io/speaches-ai/speaches:latest-cuda
 ```
 
 ### Test it
+
 ```bash
 # Transcribe a file via the API (same format as OpenAI)
 curl http://localhost:8000/v1/audio/transcriptions \
@@ -876,6 +960,7 @@ curl http://localhost:8000/v1/audio/transcriptions \
 ```
 
 ### Use with any OpenAI SDK
+
 ```python
 from openai import OpenAI
 client = OpenAI(base_url="http://localhost:8000", api_key="none")
@@ -888,21 +973,21 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 
 ## Common Mistakes
 
-| Mistake | Problem | Solution |
-|---------|---------|----------|
-| **Using CPU when GPU available** | 10-20x slower transcription | Check `nvidia-smi`; verify CUDA installation |
-| **Not specifying language** | Wastes time auto-detecting on known content | Use `--language en` when you know the language |
-| **Using wrong model** | Unnecessary slowness or poor accuracy | Default `distil-large-v3.5` is excellent; only use `large-v3` if accuracy issues |
-| **Ignoring distilled models** | Missing 6x speedup with <1% accuracy loss | Try `distil-large-v3.5` before reaching for standard models |
-| **Forgetting ffmpeg** | Setup fails or audio can't be processed | Setup script handles this; manual installs need ffmpeg separately |
-| **Out of memory errors** | Model too large for available VRAM/RAM | Use smaller model, `--compute-type int8`, or `--batch-size 4` |
-| **Over-engineering beam size** | Diminishing returns past beam-size 5-7 | Default 5 is fine; try 10 for critical transcripts |
-| **--diarize without pyannote** | Import error at runtime | Run `setup.sh --diarize` first |
-| **--diarize without HuggingFace token** | Model download fails | Run `huggingface-cli login` and accept model agreements |
-| **URL input without yt-dlp** | Download fails | Install: `pipx install yt-dlp` |
-| **--min-confidence too high** | Drops good segments with natural pauses | Start at 0.5, adjust up; check JSON output for probabilities |
-| **Using --word-timestamps for basic transcription** | Adds ~5-10s overhead for negligible benefit | Only use when word-level precision matters |
-| **Batch without -o directory** | All output mixed in stdout | Use `-o ./transcripts/` to write one file per input |
+| Mistake                                             | Problem                                     | Solution                                                                         |
+| --------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Using CPU when GPU available**                    | 10-20x slower transcription                 | Check `nvidia-smi`; verify CUDA installation                                     |
+| **Not specifying language**                         | Wastes time auto-detecting on known content | Use `--language en` when you know the language                                   |
+| **Using wrong model**                               | Unnecessary slowness or poor accuracy       | Default `distil-large-v3.5` is excellent; only use `large-v3` if accuracy issues |
+| **Ignoring distilled models**                       | Missing 6x speedup with <1% accuracy loss   | Try `distil-large-v3.5` before reaching for standard models                      |
+| **Forgetting ffmpeg**                               | Setup fails or audio can't be processed     | Setup script handles this; manual installs need ffmpeg separately                |
+| **Out of memory errors**                            | Model too large for available VRAM/RAM      | Use smaller model, `--compute-type int8`, or `--batch-size 4`                    |
+| **Over-engineering beam size**                      | Diminishing returns past beam-size 5-7      | Default 5 is fine; try 10 for critical transcripts                               |
+| **--diarize without pyannote**                      | Import error at runtime                     | Run `setup.sh --diarize` first                                                   |
+| **--diarize without HuggingFace token**             | Model download fails                        | Run `huggingface-cli login` and accept model agreements                          |
+| **URL input without yt-dlp**                        | Download fails                              | Install: `pipx install yt-dlp`                                                   |
+| **--min-confidence too high**                       | Drops good segments with natural pauses     | Start at 0.5, adjust up; check JSON output for probabilities                     |
+| **Using --word-timestamps for basic transcription** | Adds ~5-10s overhead for negligible benefit | Only use when word-level precision matters                                       |
+| **Batch without -o directory**                      | All output mixed in stdout                  | Use `-o ./transcripts/` to write one file per input                              |
 
 ## Performance Notes
 
@@ -941,33 +1026,40 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - **Subtitle burn-in**: `--burn-in` overlays subtitles directly into video via ffmpeg
 
 ### v1.5.0 New Features
+
 **Multi-format output:**
+
 - `--format srt,text` — write multiple formats in one pass (e.g. SRT + plain text simultaneously)
 - Comma-separated list accepted: `srt,vtt,json`, `srt,text`, etc.
 - Requires `-o <dir>` when writing multiple formats; single format unchanged
 
 **Filler word removal:**
+
 - `--clean-filler` — strip hesitation sounds (um, uh, er, ah, hmm, hm) and discourse markers
   (you know, I mean, you see) from transcript text; off by default
 - Conservative regex matching at word boundaries to avoid false positives
 - Segments that become empty after cleaning are dropped automatically
 
 **Stereo channel selection:**
+
 - `--channel left|right|mix` — extract a specific stereo channel before transcribing (default: mix)
 - Useful for dual-track recordings (interviewer on left, interviewee on right)
 - Uses ffmpeg pan filter; falls back gracefully to full mix if ffmpeg not found
 
 **Character-based subtitle wrapping:**
+
 - `--max-chars-per-line N` — split subtitle cues so each line fits within N characters
 - Works for SRT, VTT, ASS, and TTML formats; takes priority over `--max-words-per-line`
 - Requires word-level timestamps; falls back to full segment if no word data
 
 **Paragraph detection:**
+
 - `--detect-paragraphs` — insert `\n\n` paragraph breaks in text output at natural boundaries
 - `--paragraph-gap SEC` — minimum silence gap for a paragraph (default: 3.0s)
 - Also detects paragraph breaks when the previous segment ends a sentence and gap ≥ 1.5s
 
 **Subtitle formats:**
+
 - `--format ass` — Advanced SubStation Alpha (Aegisub, VLC, mpv, MPC-HC)
 - `--format lrc` — Timed lyrics format for music players
 - `--format html` — Confidence-colored HTML transcript (green/yellow/red per word)
@@ -975,6 +1067,7 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - `--format csv` — Spreadsheet-ready CSV with header row; RFC 4180 quoting; `speaker` column when diarized
 
 **Transcript tools:**
+
 - `--search TERM` — Find all timestamps where a word/phrase appears; replaces normal output; `-o` to save
 - `--search-fuzzy` — Approximate/partial matching with `--search`
 - `--detect-chapters` — Auto-detect chapter breaks from silence gaps; `--chapter-gap SEC` (default 8s)
@@ -982,6 +1075,7 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - `--export-speakers DIR` — After `--diarize`, save each speaker's turns as separate WAV files via ffmpeg
 
 **Batch improvements:**
+
 - **ETA** — `[N/total] filename | ETA: Xm Ys` shown before each file in sequential batch; no flag needed
 - `--language-map "pat=lang,..."` — Per-file language override; fnmatch glob patterns; `@file.json` form
 - `--retries N` — Retry failed files with exponential backoff; failed-file summary at end
@@ -989,6 +1083,7 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - `--skip-existing` / `--parallel N` / `--output-template` / `--stats-file` / `--merge-sentences`
 
 **Model & inference:**
+
 - `distil-large-v3.5` default (replaced distil-large-v3)
 - Auto-disables `condition_on_previous_text` for distil models (prevents repetition loops)
 - `--condition-on-previous-text` to override; `--log-level` for library debug output
@@ -998,12 +1093,14 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - `--hotwords`, `--prefix`, `--revision`, `--suppress-tokens`, `--max-initial-timestamp`
 
 **Speaker & quality:**
+
 - `--speaker-names "Alice,Bob"` — Replace SPEAKER_1/2 with real names (requires `--diarize`)
 - `--filter-hallucinations` — Remove music/applause markers, duplicates, "Thank you for watching"
 - `--burn-in OUTPUT` — Burn subtitles into video via ffmpeg
 - `--keep-temp` — Preserve URL-downloaded audio for re-processing
 
 **Setup:**
+
 - `setup.sh --check` — System diagnostic: GPU, CUDA, Python, ffmpeg, pyannote, HuggingFace token (completes in ~12s)
 - ffmpeg no longer required for basic transcription (PyAV handles decoding); `skill.json` updated to reflect this (`ffmpeg` is now `optionalBins`)
 
@@ -1015,7 +1112,7 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 **Slow on CPU**: Expected — use GPU for practical transcription
 **Model download fails**: Check `~/.cache/huggingface/` permissions
 **Diarization model fails**: Ensure HuggingFace token exists and model agreements accepted;
-  or pass token directly with `--hf-token hf_xxx`
+or pass token directly with `--hf-token hf_xxx`
 **URL download fails**: Check yt-dlp is installed (`pipx install yt-dlp`)
 **No audio files in batch**: Check file extensions match supported formats
 **Check installed version**: Run `./scripts/transcribe --version`
