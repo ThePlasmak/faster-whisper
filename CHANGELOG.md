@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [1.5.0] - 2026-02-18
 
+**Bug fixes:**
+- Fixed `--clean-filler` not filtering filler words from the word list: `--max-chars-per-line` / `--max-words-per-line` subtitle formatters now correctly omit filler words (previously only `seg["text"]` was cleaned; `seg["words"]` was untouched)
+- Fixed orphaned punctuation after filler removal: double commas (`,,`), orphaned commas before terminal punctuation (`,?` → `?`), and leading punctuation are now cleaned up correctly
+- Fixed fuzzy search comparing short queries against full segment text (always low ratio): now checks individual word tokens so `--search "wrld" --search-fuzzy` correctly matches "world"
+- Fixed URL input + `--detect-language-only` not cleaning up downloaded temp directories before exiting; also changed error handling to continue processing remaining files instead of exiting on first error
+
 **Subtitle formats:**
 - Added `--format ass` — Advanced SubStation Alpha (Aegisub, VLC, mpv, MPC-HC)
 - Added `--format lrc` — Timed lyrics format for music players
@@ -48,6 +54,8 @@ All notable changes to this project will be documented in this file.
 - ffmpeg no longer required for basic transcription (PyAV handles decoding)
 - Expanded trigger phrases and agent guidance for all new features
 - Chapter stdout output now uses `=== CHAPTERS (N) ===` separator for clean agent parsing
+- Fixed: `--quiet` / `-q` now correctly suppresses the RTX 3070 compute-type tip
+- Fixed: `--format json --detect-chapters` now embeds chapters under `"chapters"` key in JSON output
 
 ## [1.0.1] - 2026-01-28
 

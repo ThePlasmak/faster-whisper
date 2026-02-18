@@ -602,20 +602,67 @@ _FILLER_PATTERNS = [
     re.compile(r'\byou see\b', re.I),
 ]
 
+# Single-word filler matcher (stripped of surrounding whitespace and punctuation)
+_FILLER_WORD_RE = re.compile(r'^(um+|uh+|er+|ah+|hmm+|hm+)$', re.I)
+
+# Multi-word discourse markers as tuples of lowercased bare words
+_FILLER_BIGRAMS = [("you", "know"), ("i", "mean"), ("you", "see")]
+
+
+def _word_bare(w):
+    """Return the bare lowercased text of a word token (strip spaces + punctuation)."""
+    return re.sub(r"[^\w']", "", w["word"].lower().strip())
+
+
+def _filter_word_list(words):
+    """Remove filler words from a word list.
+
+    Removes single-word hesitations and multi-word discourse markers.
+    Returns a new list (does not mutate the input).
+    """
+    if not words:
+        return words
+
+    # First pass: mark words to remove
+    remove_idx = set()
+
+    # Single-word fillers
+    for i, w in enumerate(words):
+        if _FILLER_WORD_RE.match(_word_bare(w)):
+            remove_idx.add(i)
+
+    # Multi-word bigram markers
+    for i in range(len(words) - 1):
+        if i in remove_idx or i + 1 in remove_idx:
+            continue
+        pair = (_word_bare(words[i]), _word_bare(words[i + 1]))
+        if pair in _FILLER_BIGRAMS:
+            remove_idx.add(i)
+            remove_idx.add(i + 1)
+
+    return [w for idx, w in enumerate(words) if idx not in remove_idx]
+
 
 def remove_filler_words(segments):
-    """Strip hesitation fillers and discourse markers from segment text.
+    """Strip hesitation fillers and discourse markers from segment text and word list.
 
-    Only modifies segment['text'] — not the word list (too complex for
-    multi-word phrases).  Drops segments that become empty after cleaning.
+    Modifies segment['text'] using regex substitution and also filters
+    segment['words'] to remove matching word tokens.  Drops segments that
+    become empty after cleaning.
     """
     cleaned = []
     for seg in segments:
         text = seg["text"]
         for pat in _FILLER_PATTERNS:
             text = pat.sub("", text)
+        # Remove leading punctuation left behind after filler removal
+        text = re.sub(r'^[\s,.!?;:]+', '', text)
         # Fix up punctuation spacing: remove spaces before punctuation
         text = re.sub(r'\s+([,.!?;:])', r'\1', text)
+        # Collapse consecutive identical punctuation (e.g. ",," → ",")
+        text = re.sub(r'([,.!?;:])\1+', r'\1', text)
+        # Remove orphaned commas before terminal punctuation (e.g. ",?" → "?")
+        text = re.sub(r',([.!?])', r'\1', text)
         # Collapse multiple spaces
         text = re.sub(r'  +', ' ', text)
         text = text.strip()
@@ -623,6 +670,10 @@ def remove_filler_words(segments):
             continue
         seg = dict(seg)  # shallow copy to avoid mutating original
         seg["text"] = text
+        # Also clean the word list so word-split formatters (--max-words-per-line,
+        # --max-chars-per-line) don't re-introduce filler words in SRT/VTT/ASS/TTML.
+        if seg.get("words"):
+            seg["words"] = _filter_word_list(seg["words"])
         cleaned.append(seg)
     return cleaned
 
@@ -1394,7 +1445,8 @@ def search_transcript(segments, query, fuzzy=False):
     """Search transcript segments for *query*.
 
     Returns a list of matching segment dicts (with start, end, text, speaker).
-    Case-insensitive.  With fuzzy=True, also matches partial/approximate terms.
+    Case-insensitive.  With fuzzy=True, also matches partial/approximate terms
+    by checking individual word tokens for similarity (ratio ≥ 0.6).
     """
     import difflib
 
@@ -1405,12 +1457,23 @@ def search_transcript(segments, query, fuzzy=False):
         text = seg["text"].strip()
         text_lower = text.lower()
 
-        if fuzzy:
-            # Accept if query is a substring OR SequenceMatcher ratio is high
-            ratio = difflib.SequenceMatcher(None, query_lower, text_lower).ratio()
-            matched = (query_lower in text_lower) or (ratio >= 0.6)
-        else:
-            matched = query_lower in text_lower
+        matched = query_lower in text_lower
+
+        if not matched and fuzzy:
+            # Check each word token in the segment for similarity to query.
+            # This handles short queries (e.g. "wrld" matching "world") better
+            # than comparing the full segment text via SequenceMatcher ratio.
+            words_in_seg = re.findall(r"[\w']+", text_lower)
+            for word in words_in_seg:
+                ratio = difflib.SequenceMatcher(None, query_lower, word).ratio()
+                if ratio >= 0.6:
+                    matched = True
+                    break
+            # Fallback: also try full-text ratio for multi-word query phrases
+            if not matched and " " in query_lower:
+                ratio = difflib.SequenceMatcher(None, query_lower, text_lower).ratio()
+                if ratio >= 0.6:
+                    matched = True
 
         if matched:
             matches.append({
@@ -2516,6 +2579,7 @@ def main():
                     result = _sp.run(cmd, capture_output=True, check=True)
                     return np.frombuffer(result.stdout, dtype=np.float32)
 
+        exit_code = 0
         for audio_path in audio_files:
             try:
                 audio_np = decode_audio(audio_path)
@@ -2527,10 +2591,13 @@ def main():
                     print(f"Language: {lang} (probability: {prob_val:.3f})")
             except Exception as e:
                 print(f"Error detecting language for {audio_path}: {e}", file=sys.stderr)
-                sys.exit(1)
+                exit_code = 1
+        # Clean up any URL-downloaded temp directories before exiting
+        for td in temp_dirs:
+            shutil.rmtree(td, ignore_errors=True)
         if stdin_tmp and os.path.exists(stdin_tmp.name):
             os.unlink(stdin_tmp.name)
-        sys.exit(0)
+        sys.exit(exit_code)
 
     # ---- Transcribe ----
     results = []
