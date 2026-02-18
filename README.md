@@ -2,7 +2,7 @@
 
 A skill for your OpenClaw agent that uses faster-whisper to transcribe audio more quickly.
 
-faster-whisper is superior to a OpenAI's Whisper — it's a CTranslate2 reimplementation that's ~4-6x faster with identical accuracy.
+faster-whisper is superior to OpenAI's Whisper — it's a CTranslate2 reimplementation that's ~4-6x faster with identical accuracy.
 
 ## Features
 
