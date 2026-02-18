@@ -122,7 +122,7 @@ If you want to use the transcription scripts directly without your agent:
 
 ## How to Use
 
-### With your agent
+### With Your Agent
 
 Just ask in natural language:
 
