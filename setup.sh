@@ -31,14 +31,110 @@ for arg in "$@"; do
             "$VENV_DIR/bin/python" -c "import faster_whisper; print(f'Version: {faster_whisper.__version__}')"
             exit 0
             ;;
+        --check)
+            # Quick system check: GPU, Python, ffmpeg, venv, faster-whisper, yt-dlp, pyannote
+            echo "🔍 faster-whisper skill system check"
+            echo ""
+
+            # Python
+            if command -v python3 &>/dev/null; then
+                PY_VER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")')
+                echo "✅ Python: $PY_VER"
+            else
+                echo "❌ Python: not found"
+            fi
+
+            # ffmpeg
+            if command -v ffmpeg &>/dev/null; then
+                FF_VER=$(ffmpeg -version 2>&1 | head -1 | awk '{print $3}')
+                echo "✅ ffmpeg: $FF_VER"
+            else
+                echo "⚠️  ffmpeg: not found (needed for --normalize, --denoise, --burn-in)"
+            fi
+
+            # GPU/CUDA
+            NVIDIA_SMI_CHECK=""
+            if command -v nvidia-smi &>/dev/null; then
+                NVIDIA_SMI_CHECK="nvidia-smi"
+            elif grep -qi microsoft /proc/version 2>/dev/null; then
+                for wsl_smi in /usr/lib/wsl/lib/nvidia-smi /usr/lib/wsl/drivers/*/nvidia-smi; do
+                    [ -f "$wsl_smi" ] && NVIDIA_SMI_CHECK="$wsl_smi" && break
+                done
+            fi
+            if [ -n "$NVIDIA_SMI_CHECK" ]; then
+                GPU_CHECK=$("$NVIDIA_SMI_CHECK" --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)
+                DRV_CHECK=$("$NVIDIA_SMI_CHECK" --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+                if [ -n "$GPU_CHECK" ]; then
+                    echo "✅ GPU: $GPU_CHECK (driver $DRV_CHECK)"
+                else
+                    echo "⚠️  GPU: nvidia-smi found but no GPU reported"
+                fi
+            else
+                echo "⚠️  GPU: no NVIDIA GPU detected (CPU mode)"
+            fi
+
+            # venv
+            if [ -d "$VENV_DIR" ]; then
+                echo "✅ venv: $VENV_DIR"
+                # faster-whisper version
+                if "$VENV_DIR/bin/python" -c "import faster_whisper" 2>/dev/null; then
+                    FW_VER=$("$VENV_DIR/bin/python" -c "import faster_whisper; print(faster_whisper.__version__)" 2>/dev/null)
+                    echo "✅ faster-whisper: $FW_VER"
+                else
+                    echo "❌ faster-whisper: not installed (run ./setup.sh)"
+                fi
+                # CUDA in venv
+                CUDA_CHECK=$("$VENV_DIR/bin/python" -c "import torch; print(torch.cuda.is_available())" 2>/dev/null || echo "False")
+                if [ "$CUDA_CHECK" = "True" ]; then
+                    CUDA_DEV=$("$VENV_DIR/bin/python" -c "import torch; print(torch.cuda.get_device_name(0))" 2>/dev/null)
+                    echo "✅ CUDA in venv: available ($CUDA_DEV)"
+                else
+                    echo "⚠️  CUDA in venv: not available (CPU mode; check PyTorch CUDA install)"
+                fi
+                # pyannote
+                if "$VENV_DIR/bin/python" -c "import pyannote.audio" 2>/dev/null; then
+                    PA_VER=$("$VENV_DIR/bin/python" -c "import pyannote.audio; print(pyannote.audio.__version__)" 2>/dev/null)
+                    echo "✅ pyannote.audio: $PA_VER (--diarize available)"
+                else
+                    echo "ℹ️  pyannote.audio: not installed (--diarize unavailable; run ./setup.sh --diarize)"
+                fi
+            else
+                echo "❌ venv: not found (run ./setup.sh)"
+            fi
+
+            # yt-dlp
+            YTDLP_CHECK=""
+            if command -v yt-dlp &>/dev/null; then
+                YTDLP_CHECK="yt-dlp"
+            elif [ -f "$HOME/.local/share/pipx/venvs/yt-dlp/bin/yt-dlp" ]; then
+                YTDLP_CHECK="$HOME/.local/share/pipx/venvs/yt-dlp/bin/yt-dlp"
+            fi
+            if [ -n "$YTDLP_CHECK" ]; then
+                YTDLP_VER=$("$YTDLP_CHECK" --version 2>/dev/null)
+                echo "✅ yt-dlp: $YTDLP_VER (URL/YouTube input available)"
+            else
+                echo "ℹ️  yt-dlp: not installed (URL/YouTube input unavailable; pipx install yt-dlp)"
+            fi
+
+            # HuggingFace token
+            if [ -f "$HOME/.cache/huggingface/token" ]; then
+                echo "✅ HuggingFace token: present"
+            else
+                echo "ℹ️  HuggingFace token: not found (needed for --diarize; run huggingface-cli login)"
+            fi
+
+            echo ""
+            exit 0
+            ;;
         --help|-h)
-            echo "Usage: ./setup.sh [--diarize] [--update]"
+            echo "Usage: ./setup.sh [--diarize] [--update] [--check]"
             echo ""
             echo "Options:"
             echo "  --diarize    Also install pyannote.audio for speaker diarization"
             echo "               Requires HuggingFace token at ~/.cache/huggingface/token"
             echo "               and model agreement at https://hf.co/pyannote/speaker-diarization-3.1"
             echo "  --update     Upgrade faster-whisper in the existing venv without full reinstall"
+            echo "  --check      Verify system dependencies (GPU, Python, ffmpeg, venv, yt-dlp)"
             exit 0
             ;;
     esac

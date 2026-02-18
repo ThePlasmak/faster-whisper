@@ -1,7 +1,7 @@
 ---
 name: faster-whisper
-description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT subtitles, speaker diarization, URL/YouTube input, batch processing."
-version: 1.8.0
+description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT/TTML subtitles, speaker diarization, URL/YouTube input, batch processing, transcript search, chapter detection."
+version: 1.12.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization"]
@@ -54,6 +54,9 @@ Use this skill when you need to:
 - Cloud-only environments without local compute
 - Files <10 seconds where API call latency doesn't matter
 
+**faster-whisper vs whisperx:**
+This skill covers everything whisperx does — diarization (`--diarize`), word-level timestamps (`--word-timestamps`), SRT/VTT subtitles — so whisperx is not needed. Use whisperx only if you specifically need its pyannote pipeline or batch-GPU features not covered here.
+
 ## Quick Reference
 
 | Task | Command | Notes |
@@ -91,9 +94,11 @@ Use this skill when you need to:
 | **Private/gated model** | `./scripts/transcribe audio.mp3 --hf-token hf_xxx` | Pass token directly |
 | **Show version** | `./scripts/transcribe --version` | Print faster-whisper version |
 | **Upgrade in-place** | `./setup.sh --update` | Upgrade without full reinstall |
+| **System check** | `./setup.sh --check` | Verify GPU, Python, ffmpeg, venv, yt-dlp, pyannote |
 | **Detect language only** | `./scripts/transcribe audio.mp3 --detect-language-only` | Fast language ID, no transcription |
 | **Detect language JSON** | `./scripts/transcribe audio.mp3 --detect-language-only --format json` | Machine-readable language detection |
 | **LRC subtitles** | `./scripts/transcribe audio.mp3 --format lrc -o lyrics.lrc` | Timed lyrics format for music players |
+| **ASS subtitles** | `./scripts/transcribe audio.mp3 --format ass -o subtitles.ass` | Advanced SubStation Alpha (Aegisub, mpv, VLC) |
 | **Merge sentences** | `./scripts/transcribe audio.mp3 --format srt --merge-sentences` | Join fragments into sentence chunks |
 | **Stats sidecar** | `./scripts/transcribe audio.mp3 --stats-file stats.json` | Write perf stats JSON after transcription |
 | **Batch stats** | `./scripts/transcribe *.mp3 --stats-file ./stats/` | One stats file per input in dir |
@@ -107,6 +112,22 @@ Use this skill when you need to:
 | **Filter hallucinations** | `./scripts/transcribe audio.mp3 --filter-hallucinations` | Removes artifacts |
 | **Keep temp files** | `./scripts/transcribe https://... --keep-temp` | For URL re-processing |
 | **Parallel batch** | `./scripts/transcribe *.mp3 --parallel 4 -o ./out/` | CPU multi-file |
+| **RTX 3070 recommended** | `./scripts/transcribe audio.mp3 --compute-type int8_float16` | Saves ~1GB VRAM, minimal quality loss |
+| **CPU thread count** | `./scripts/transcribe audio.mp3 --threads 8` | Force CPU thread count (default: auto) |
+| **Podcast RSS (latest 5)** | `./scripts/transcribe --rss https://feeds.example.com/podcast.xml` | Downloads & transcribes newest 5 episodes |
+| **Podcast RSS (all episodes)** | `./scripts/transcribe --rss https://... --rss-latest 0 -o ./episodes/` | All episodes, one file each |
+| **Podcast + SRT subtitles** | `./scripts/transcribe --rss https://... --format srt -o ./subs/` | Subtitle all episodes |
+| **Retry on failure** | `./scripts/transcribe *.mp3 --retries 3 -o ./out/` | Retry up to 3× with backoff on error |
+| **TTML subtitles** | `./scripts/transcribe audio.mp3 --format ttml -o subtitles.ttml` | Broadcast-standard DFXP/TTML (Netflix, BBC, Amazon) |
+| **TTML with speaker labels** | `./scripts/transcribe audio.mp3 --diarize --format ttml -o subtitles.ttml` | Speaker-labeled TTML |
+| **Search transcript** | `./scripts/transcribe audio.mp3 --search "keyword"` | Find timestamps where keyword appears |
+| **Search to file** | `./scripts/transcribe audio.mp3 --search "keyword" -o results.txt` | Save search results |
+| **Fuzzy search** | `./scripts/transcribe audio.mp3 --search "aproximate" --search-fuzzy` | Approximate/partial matching |
+| **Detect chapters** | `./scripts/transcribe audio.mp3 --detect-chapters` | Auto-detect chapters from silence gaps |
+| **Chapter gap tuning** | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-gap 5` | Chapters on gaps ≥5s (default: 8s) |
+| **Chapters to file** | `./scripts/transcribe audio.mp3 --detect-chapters --chapters-file ch.txt` | Save YouTube-format chapter list |
+| **Chapters JSON** | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-format json` | Machine-readable chapter list |
+| **Export speaker audio** | `./scripts/transcribe audio.mp3 --diarize --export-speakers ./speakers/` | Save each speaker's audio to separate WAV files |
 
 ## Model Selection
 
@@ -233,6 +254,8 @@ The setup script auto-detects your GPU and installs PyTorch with CUDA. **Always 
 | RTX 3070 (GPU) | ~20x realtime | ~27 sec |
 | CPU (int8) | ~0.3x realtime | ~30 min |
 
+> **RTX 3070 tip**: Use `--compute-type int8_float16` for hybrid quantization — saves ~1GB VRAM with minimal quality loss. Ideal for running diarization alongside transcription.
+
 If setup didn't detect your GPU, manually install PyTorch with CUDA:
 
 ```bash
@@ -306,7 +329,7 @@ Model & Language:
   --model-dir PATH      Custom model cache directory (default: ~/.cache/huggingface/)
 
 Output Format:
-  -f, --format FMT      text | json | srt | vtt | tsv | lrc | html (default: text)
+  -f, --format FMT      text | json | srt | vtt | tsv | lrc | html | ass (default: text)
   --word-timestamps     Include word-level timestamps (wav2vec2 aligned automatically)
   --stream              Output segments as they are transcribed (disables diarize/alignment)
   --max-words-per-line N  For SRT/VTT, split segments into sub-cues of at most N words
@@ -397,6 +420,37 @@ Advanced:
                         'Thank you for watching', lone punctuation, etc.
   --keep-temp           Keep temp files from URL downloads (useful for re-processing without re-downloading)
   --parallel N          Number of parallel workers for batch processing (default: sequential)
+  --retries N           Retry failed files up to N times with exponential backoff (default: 0;
+                        incompatible with --parallel)
+
+Transcript Search:
+  --search TERM         Search the transcript for TERM and print matching segments with timestamps.
+                        Replaces normal transcript output (use -o to save results to a file).
+                        Case-insensitive exact substring match by default.
+  --search-fuzzy        Enable fuzzy/approximate matching with --search (useful for typos, phonetic
+                        near-misses, or partial words; uses SequenceMatcher ratio ≥ 0.6)
+
+Chapter Detection:
+  --detect-chapters     Auto-detect chapter/section breaks from silence gaps and print chapter markers.
+                        Output is printed after the transcript (or to --chapters-file).
+  --chapter-gap SEC     Minimum silence gap in seconds between consecutive segments to start a new
+                        chapter (default: 8.0). Tune down for dense speech, up for sparse content.
+  --chapters-file PATH  Write chapter markers to this file (default: stdout after transcript)
+  --chapter-format FMT  youtube | text | json — chapter output format:
+                          youtube: "0:00 Chapter 1" (YouTube description ready)
+                          text:    "Chapter 1: 00:00:00"
+                          json:    JSON array with chapter, start, title fields
+                        (default: youtube)
+
+Speaker Audio Export:
+  --export-speakers DIR After diarization, export each speaker's audio turns concatenated into
+                        separate WAV files saved in DIR. Requires --diarize and ffmpeg.
+                        Output: SPEAKER_1.wav, SPEAKER_2.wav, … (or real names if --speaker-names set)
+
+RSS / Podcast:
+  --rss URL             Podcast RSS feed URL — extracts audio enclosures and transcribes them.
+                        AUDIO positional is optional when --rss is used.
+  --rss-latest N        Number of most-recent episodes to process (default: 5; 0 = all episodes)
 
 Device:
   --device DEV          auto | cpu | cuda (default: auto)
@@ -474,6 +528,23 @@ Tab-separated values, OpenAI Whisper–compatible. Columns: `start_ms`, `end_ms`
 2800	4200	Thanks for having me.
 ```
 Useful for piping into other tools or spreadsheets. No header row.
+
+### ASS/SSA (`--format ass`)
+Advanced SubStation Alpha format — supported by Aegisub, VLC, mpv, MPC-HC, and most video editors. Offers richer styling than SRT (font, size, color, position) via the `[V4+ Styles]` section:
+```
+[Script Info]
+ScriptType: v4.00+
+...
+
+[V4+ Styles]
+Style: Default,Arial,20,&H00FFFFFF,...
+
+[Events]
+Format: Layer, Start, End, Style, Name, ..., Text
+Dialogue: 0,0:00:00.00,0:00:02.50,Default,,[SPEAKER_1] Hello, welcome.
+Dialogue: 0,0:00:02.80,0:00:04.20,Default,,[SPEAKER_2] Thanks for having me.
+```
+Timestamps use `H:MM:SS.cc` (centiseconds). Edit the `[V4+ Styles]` block in Aegisub to customise font, color, and position without re-transcribing.
 
 ### LRC (`--format lrc`)
 Timed lyrics format used by music players (e.g., Foobar2000, VLC, AIMP). Timestamps use `[mm:ss.xx]` where `xx` = centiseconds:
@@ -582,6 +653,113 @@ Batch mode prints a summary after all files complete:
 📊 Done: 12 files, 3h24m audio in 10m15s (19.9× realtime)
 ```
 
+## Workflows
+
+End-to-end pipelines for common use cases.
+
+### Podcast Transcription Pipeline
+Fetch and transcribe the latest 5 episodes from any podcast RSS feed:
+```bash
+# Transcribe latest 5 episodes → one .txt per episode
+./scripts/transcribe --rss https://feeds.megaphone.fm/mypodcast -o ./transcripts/
+
+# All episodes, as SRT subtitles
+./scripts/transcribe --rss https://... --rss-latest 0 --format srt -o ./subtitles/
+
+# Skip already-done episodes (safe to re-run)
+./scripts/transcribe --rss https://... --skip-existing -o ./transcripts/
+
+# With diarization (who said what) + retry on flaky network
+./scripts/transcribe --rss https://... --diarize --retries 2 -o ./transcripts/
+```
+
+### Meeting Notes Pipeline
+Transcribe a meeting recording with speaker labels, then output clean text:
+```bash
+# Diarize + name speakers (replace SPEAKER_1/2 with real names)
+./scripts/transcribe meeting.wav --diarize --speaker-names "Alice,Bob" -o meeting.txt
+
+# Diarized JSON for post-processing (summaries, action items)
+./scripts/transcribe meeting.wav --diarize --format json -o meeting.json
+
+# Stream live while it transcribes (long meetings)
+./scripts/transcribe meeting.wav --stream
+```
+
+### Video Subtitle Pipeline
+Generate ready-to-use subtitles for a video file:
+```bash
+# SRT subtitles with sentence merging (better readability)
+./scripts/transcribe video.mp4 --format srt --merge-sentences -o subtitles.srt
+
+# Burn subtitles directly into the video
+./scripts/transcribe video.mp4 --format srt --burn-in video_subtitled.mp4
+
+# Word-level SRT (karaoke-style), capped at 8 words per cue
+./scripts/transcribe video.mp4 --format srt --word-timestamps --max-words-per-line 8 -o subs.srt
+```
+
+### YouTube Batch Pipeline
+Transcribe multiple YouTube videos at once:
+```bash
+# One-liner: transcribe a playlist video + output SRT
+./scripts/transcribe "https://youtube.com/watch?v=abc123" --format srt -o subs.srt
+
+# Batch from a text file of URLs (one per line)
+cat urls.txt | xargs ./scripts/transcribe -o ./transcripts/
+
+# Download audio first, then transcribe (for re-use without re-downloading)
+./scripts/transcribe https://youtube.com/watch?v=abc123 --keep-temp
+```
+
+### Noisy Audio Pipeline
+Clean up poor-quality recordings before transcribing:
+```bash
+# Denoise + normalize, then transcribe
+./scripts/transcribe interview.mp3 --denoise --normalize -o interview.txt
+
+# Noisy batch with aggressive hallucination filtering
+./scripts/transcribe *.mp3 --denoise --filter-hallucinations -o ./out/
+```
+
+### Batch Recovery Pipeline
+Process a large folder with retries — safe to re-run after failures:
+```bash
+# Retry each failed file up to 3 times, skip already-done
+./scripts/transcribe ./recordings/ --skip-existing --retries 3 -o ./transcripts/
+
+# Check what failed (printed in batch summary at the end)
+# Re-run the same command — skips successes, retries failures
+```
+
+## Server Mode (OpenAI-Compatible API)
+
+[speaches](https://github.com/speaches-ai/speaches) runs faster-whisper as an OpenAI-compatible `/v1/audio/transcriptions` endpoint — drop-in replacement for OpenAI Whisper API with streaming, Docker support, and live transcription.
+
+### Quick start (Docker)
+```bash
+docker run --gpus all -p 8000:8000 ghcr.io/speaches-ai/speaches:latest-cuda
+```
+
+### Test it
+```bash
+# Transcribe a file via the API (same format as OpenAI)
+curl http://localhost:8000/v1/audio/transcriptions \
+  -F file=@audio.mp3 \
+  -F model=Systran/faster-whisper-large-v3
+```
+
+### Use with any OpenAI SDK
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://localhost:8000", api_key="none")
+with open("audio.mp3", "rb") as f:
+    result = client.audio.transcriptions.create(model="Systran/faster-whisper-large-v3", file=f)
+print(result.text)
+```
+
+Useful when you want to expose transcription as a local API for other tools (Home Assistant, n8n, custom apps).
+
 ## Common Mistakes
 
 | Mistake | Problem | Solution |
@@ -616,6 +794,9 @@ Batch mode prints a summary after all files complete:
   - `tiny/base`: <1GB RAM
   - Diarization: additional ~1-2GB VRAM
 - **OOM**: Lower `--batch-size` (try 4) if you hit out-of-memory errors
+- **Pre-convert to WAV** (optional): `ffmpeg -i input.mp3 -ar 16000 -ac 1 input.wav` converts to 16kHz mono WAV before transcription. Benefit is minimal (~5%) for one-off use since PyAV decodes efficiently — most useful when re-processing the same file multiple times (research/experiments) or when a format causes PyAV decode issues. Note: `--normalize` and `--denoise` already perform this conversion automatically.
+- **Silero VAD V6**: faster-whisper 1.2.1 upgraded to Silero VAD V6 (improved speech detection). Run `./setup.sh --update` to get it.
+- **Batched silence removal**: faster-whisper 1.2.0+ automatically removes silence in `BatchedInferencePipeline` (used by default). Upgrade with `./setup.sh --update` to get this if you installed before August 2024.
 
 ## Why faster-whisper?
 
@@ -632,6 +813,31 @@ Batch mode prints a summary after all files complete:
 - **Quality control**: `--filter-hallucinations` strips music/applause markers and duplicates
 - **Parallel batch**: `--parallel N` for multi-threaded batch processing
 - **Subtitle burn-in**: `--burn-in` overlays subtitles directly into video via ffmpeg
+
+### v1.12.0 New Features
+- **Transcript search** — `--search TERM` finds all segments containing the term and prints them with timestamps; replaces normal output so results can be piped or saved with `-o`. `--search-fuzzy` enables approximate matching.
+- **Chapter detection** — `--detect-chapters` scans silence gaps between segments and emits chapter markers. Configurable via `--chapter-gap SEC` (default: 8s). Three output formats: `youtube` (ready for YouTube description), `text`, `json`. Save to file with `--chapters-file PATH`.
+- **TTML subtitles** — `--format ttml` outputs W3C TTML 1.0 (DFXP) — the broadcast-standard format used by Netflix, Amazon Prime, BBC, and most professional video platforms. Supports speaker labels and `--max-words-per-line`.
+- **Speaker audio export** — `--export-speakers DIR` after diarization extracts each speaker's turns into separate WAV files using ffmpeg's `aselect` filter. Files named `SPEAKER_1.wav`, `SPEAKER_2.wav`, etc. (respects `--speaker-names`). Requires `--diarize` and ffmpeg.
+
+### v1.11.0 New Features
+- **Podcast RSS support** — `--rss <feed-url>` fetches audio enclosures from any standard podcast RSS feed and transcribes them; `--rss-latest N` controls how many recent episodes to process (default: 5; 0 = all). No extra dependencies — uses stdlib `urllib` + `xml.etree`.
+- **Retry logic** — `--retries N` retries failed files up to N times with exponential backoff (2s, 4s, 8s, …). Failed files are listed in the batch summary.
+- **Failed-file summary** — batch mode now prints a clear `❌ Failed: N file(s)` list at the end instead of silent skips.
+- **Workflows section** — new end-to-end pipeline examples: Podcast, Meeting Notes, Video Subtitles, YouTube Batch, Noisy Audio, Batch Recovery.
+
+### v1.10.0 New Features
+- **ASS/SSA subtitle format** — `--format ass` outputs Advanced SubStation Alpha (`.ass`) compatible with Aegisub, VLC, mpv, MPC-HC, and most video editors; richer styling than SRT/VTT
+- **`setup.sh --check`** — quick system diagnostic: GPU, CUDA, Python, ffmpeg, faster-whisper version, yt-dlp, pyannote, HuggingFace token
+- **Pre-conversion tip** — documents 16kHz mono WAV pre-conversion for repeated processing workflows
+- **whisperx vs faster-whisper** — clarifies this skill covers all whisperx use cases (diarization, word timestamps, SRT/VTT); whisperx not needed
+
+### v1.9.0 New Features
+- **Silero VAD V6 note** — documents faster-whisper 1.2.1 upgrade to Silero VAD V6 for better speech detection
+- **Server Mode section** — documents speaches for OpenAI-compatible API serving
+- **Batch silence removal note** — documents faster-whisper 1.2.0 automatic silence removal in batched mode
+- **RTX 3070 tip** — recommends `--compute-type int8_float16` for RTX 30xx GPUs in docs and at runtime
+- **`--threads` in Quick Reference** — added to table for discoverability
 
 ### v1.8.0 New Features
 - **Auto-disable `condition_on_previous_text` for distil models** — Applied automatically per HuggingFace recommendation; prevents repetition loops with the default distil-large-v3.5 model. Pass `--condition-on-previous-text` to override.
@@ -664,6 +870,7 @@ Batch mode prints a summary after all files complete:
 **Upgrade faster-whisper**: Run `./setup.sh --update` (upgrades in-place, no full reinstall)
 **Hallucinations on silence/music**: Try `--temperature 0.0 --no-speech-threshold 0.8`
 **VAD splits speech incorrectly**: Tune with `--vad-threshold 0.3` (lower) or `--min-silence-duration 300`
+**Improve speech detection**: Run `./setup.sh --update` to upgrade faster-whisper to the latest version (includes Silero VAD V6).
 
 ## References
 

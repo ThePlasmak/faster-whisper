@@ -179,6 +179,68 @@ def to_tsv(segments):
     return "\n".join(lines)
 
 
+def format_ts_ass(seconds):
+    """Format seconds as ASS/SSA timestamp: H:MM:SS.cc (centiseconds)"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    cs = int((seconds % 1) * 100)
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+def to_ass(segments, max_words_per_line=None):
+    """Format segments as ASS/SSA (Advanced SubStation Alpha) subtitle content.
+
+    Produces a standard v4.00+ ASS file with default styling. Compatible with
+    Aegisub, VLC, mpv, MPC-HC, and most video editors.
+    """
+    header = (
+        "[Script Info]\n"
+        "Title: Transcript\n"
+        "ScriptType: v4.00+\n"
+        "PlayResX: 384\n"
+        "PlayResY: 288\n"
+        "Timer: 100.0000\n"
+        "\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        "Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+        "0,0,0,0,100,100,0,0,1,2,1,2,10,10,10,1\n"
+        "\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+    )
+
+    lines = [header]
+
+    for seg in segments:
+        text = seg["text"].strip().replace("\n", "\\N")
+        if seg.get("speaker"):
+            text = f"[{seg['speaker']}] {text}"
+
+        if max_words_per_line and seg.get("words"):
+            words = seg["words"]
+            for i in range(0, len(words), max_words_per_line):
+                chunk = words[i:i + max_words_per_line]
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                lines.append(
+                    f"Dialogue: 0,{format_ts_ass(chunk[0]['start'])},"
+                    f"{format_ts_ass(chunk[-1]['end'])},Default,,0,0,0,,{chunk_text}"
+                )
+        else:
+            lines.append(
+                f"Dialogue: 0,{format_ts_ass(seg['start'])},"
+                f"{format_ts_ass(seg['end'])},Default,,0,0,0,,{text}"
+            )
+
+    return "\n".join(lines)
+
+
 def to_lrc(segments):
     """Format segments as LRC (timed lyrics) format used by music players.
 
@@ -197,6 +259,95 @@ def to_lrc(segments):
         if seg.get("speaker"):
             text = f"[{seg['speaker']}] {text}"
         lines.append(f"{ts}{text}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# TTML (Timed Text Markup Language) output
+# ---------------------------------------------------------------------------
+
+def format_ts_ttml(seconds):
+    """Format seconds as TTML timestamp: HH:MM:SS.mmm"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+
+
+def to_ttml(segments, language="en", max_words_per_line=None):
+    """Format segments as TTML (Timed Text Markup Language / DFXP) subtitles.
+
+    Produces a W3C TTML 1.0 file compatible with broadcast platforms,
+    Netflix, Amazon Prime, BBC iPlayer, and most professional video tools.
+    """
+    lang_attr = (language or "en").replace("_", "-")
+
+    def xml_escape(text):
+        return (text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;"))
+
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<tt xml:lang="{lang_attr}"',
+        '    xmlns="http://www.w3.org/ns/ttml"',
+        '    xmlns:tts="http://www.w3.org/ns/ttml#styling"',
+        '    xmlns:ttm="http://www.w3.org/ns/ttml#metadata">',
+        '  <head>',
+        '    <metadata>',
+        '      <ttm:title>Transcript</ttm:title>',
+        '    </metadata>',
+        '    <styling>',
+        '      <style xml:id="s1"',
+        '             tts:fontFamily="Arial, Helvetica, sans-serif"',
+        '             tts:fontSize="100%"',
+        '             tts:fontWeight="normal"',
+        '             tts:color="white"',
+        '             tts:textAlign="center"',
+        '             tts:backgroundColor="transparent"/>',
+        '    </styling>',
+        '    <layout>',
+        '      <region xml:id="r1"',
+        '              tts:origin="10% 85%"',
+        '              tts:extent="80% 10%"',
+        '              tts:displayAlign="before"/>',
+        '    </layout>',
+        '  </head>',
+        '  <body>',
+        '    <div region="r1">',
+    ]
+
+    for seg in segments:
+        if max_words_per_line and seg.get("words"):
+            words = seg["words"]
+            for i in range(0, len(words), max_words_per_line):
+                chunk = words[i:i + max_words_per_line]
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                begin = format_ts_ttml(chunk[0]["start"])
+                end = format_ts_ttml(chunk[-1]["end"])
+                lines.append(
+                    f'      <p begin="{begin}" end="{end}" style="s1">{xml_escape(chunk_text)}</p>'
+                )
+        else:
+            text = seg["text"].strip()
+            if seg.get("speaker"):
+                text = f"[{seg['speaker']}] {text}"
+            begin = format_ts_ttml(seg["start"])
+            end = format_ts_ttml(seg["end"])
+            lines.append(
+                f'      <p begin="{begin}" end="{end}" style="s1">{xml_escape(text)}</p>'
+            )
+
+    lines.extend([
+        '    </div>',
+        '  </body>',
+        '</tt>',
+    ])
     return "\n".join(lines)
 
 
@@ -416,6 +567,67 @@ def download_url(url, quiet=False):
         sys.exit(1)
 
     return str(files[0]), tmpdir
+
+
+# ---------------------------------------------------------------------------
+# RSS / Podcast feed
+# ---------------------------------------------------------------------------
+
+def fetch_rss_episodes(rss_url, latest=5, quiet=False):
+    """Parse a podcast RSS feed and return audio enclosure URLs.
+
+    Returns list of (url, title) tuples, newest-first (standard RSS order).
+    Uses only stdlib — no extra dependencies.
+    """
+    import urllib.request
+    import xml.etree.ElementTree as ET
+
+    if not quiet:
+        print(f"📡 Fetching RSS feed: {rss_url}", file=sys.stderr)
+
+    try:
+        req = urllib.request.Request(
+            rss_url, headers={"User-Agent": "faster-whisper-skill/1.0"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            xml_data = resp.read()
+    except Exception as e:
+        print(f"Error fetching RSS feed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        root = ET.fromstring(xml_data)
+    except ET.ParseError as e:
+        print(f"Error parsing RSS XML: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    items = root.findall(".//item")
+    if not items:
+        print("Error: No <item> elements found in RSS feed", file=sys.stderr)
+        sys.exit(1)
+
+    episodes = []
+    for item in items:
+        enclosure = item.find("enclosure")
+        if enclosure is None:
+            continue
+        url = (enclosure.get("url") or "").strip()
+        if not url:
+            continue
+        title_el = item.find("title")
+        title = (title_el.text or url).strip() if title_el is not None else url
+        episodes.append((url, title))
+
+    if not episodes:
+        print("Error: No audio <enclosure> elements found in RSS feed", file=sys.stderr)
+        sys.exit(1)
+
+    total = len(episodes)
+    take = min(latest, total) if latest else total
+    if not quiet:
+        print(f"   Found {total} episode(s) — processing {take}", file=sys.stderr)
+
+    return episodes[:take] if latest else episodes
 
 
 # ---------------------------------------------------------------------------
@@ -772,6 +984,73 @@ def run_diarization(audio_path, segments, quiet=False, min_speakers=None, max_sp
 
 
 # ---------------------------------------------------------------------------
+# Speaker audio export
+# ---------------------------------------------------------------------------
+
+def export_speakers_audio(audio_path, segments, output_dir, quiet=False):
+    """Export each speaker's audio as a separate WAV file.
+
+    Groups diarized segments by speaker and uses ffmpeg's *aselect* filter to
+    extract and concatenate each speaker's turns into a single file.
+    Requires ffmpeg and diarized segments (speaker field on each segment).
+    """
+    if not shutil.which("ffmpeg"):
+        print("⚠️  --export-speakers requires ffmpeg in PATH", file=sys.stderr)
+        return
+
+    # Group by speaker
+    speaker_ranges = {}
+    for seg in segments:
+        sp = seg.get("speaker")
+        if not sp:
+            continue
+        speaker_ranges.setdefault(sp, []).append((seg["start"], seg["end"]))
+
+    if not speaker_ranges:
+        print(
+            "⚠️  No speaker labels found in segments.\n"
+            "     Run with --diarize to enable speaker audio export.",
+            file=sys.stderr,
+        )
+        return
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    for speaker, ranges in sorted(speaker_ranges.items()):
+        out_file = out_dir / f"{speaker}.wav"
+
+        # Build aselect expression: 'between(t,S,E)+between(t,S,E)+...'
+        select_expr = "+".join(
+            f"between(t,{start:.3f},{end:.3f})" for start, end in ranges
+        )
+
+        cmd = [
+            "ffmpeg", "-y", "-i", audio_path,
+            "-af", f"aselect='{select_expr}',asetpts=N/SR/TB",
+            str(out_file),
+        ]
+
+        total_dur = sum(e - s for s, e in ranges)
+        if not quiet:
+            print(
+                f"🎤 Exporting {speaker}: {len(ranges)} segment(s), "
+                f"{format_duration(total_dur)}...",
+                file=sys.stderr,
+            )
+
+        try:
+            subprocess.run(cmd, check=True, stderr=subprocess.DEVNULL if quiet else None)
+            if not quiet:
+                print(f"   💾 {out_file}", file=sys.stderr)
+        except subprocess.CalledProcessError as e:
+            print(f"⚠️  Failed to export {speaker}: {e}", file=sys.stderr)
+
+    if not quiet:
+        print(f"✅ Speaker audio saved to: {out_dir}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------------
 # Sentence merging
 # ---------------------------------------------------------------------------
 
@@ -822,6 +1101,121 @@ def merge_sentences(segments):
 
     flush()
     return merged
+
+
+# ---------------------------------------------------------------------------
+# Chapter detection
+# ---------------------------------------------------------------------------
+
+def detect_chapters(segments, min_gap=8.0):
+    """Detect chapter breaks from silence gaps between segments.
+
+    A new chapter starts when the silence between two consecutive segments
+    exceeds *min_gap* seconds.  Returns a list of chapter dicts:
+        {"chapter": N, "start": seconds, "title": "Chapter N"}
+    """
+    if not segments:
+        return []
+
+    chapters = [{"chapter": 1, "start": segments[0]["start"], "title": "Chapter 1"}]
+    chapter_num = 1
+
+    for i in range(1, len(segments)):
+        gap = segments[i]["start"] - segments[i - 1]["end"]
+        if gap >= min_gap:
+            chapter_num += 1
+            chapters.append({
+                "chapter": chapter_num,
+                "start": segments[i]["start"],
+                "title": f"Chapter {chapter_num}",
+            })
+
+    return chapters
+
+
+def _fmt_chapter_ts(seconds):
+    """Format chapter timestamp: M:SS or H:MM:SS."""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def format_chapters_output(chapters, fmt="youtube"):
+    """Render chapter list.
+
+    fmt="youtube"  → "0:00 Chapter 1\\n5:30 Chapter 2" (YouTube description format)
+    fmt="text"     → "Chapter 1: 00:00:00\\nChapter 2: 00:05:30"
+    fmt="json"     → JSON array
+    """
+    if fmt == "json":
+        return json.dumps(chapters, indent=2, ensure_ascii=False)
+
+    if fmt == "text":
+        lines = []
+        for ch in chapters:
+            h = int(ch["start"] // 3600)
+            m = int((ch["start"] % 3600) // 60)
+            s = int(ch["start"] % 60)
+            ts = f"{h:02d}:{m:02d}:{s:02d}"
+            lines.append(f"{ch['title']}: {ts}")
+        return "\n".join(lines)
+
+    # Default: YouTube-compatible "M:SS Title"
+    return "\n".join(
+        f"{_fmt_chapter_ts(ch['start'])} {ch['title']}" for ch in chapters
+    )
+
+
+# ---------------------------------------------------------------------------
+# Transcript search
+# ---------------------------------------------------------------------------
+
+def search_transcript(segments, query, fuzzy=False):
+    """Search transcript segments for *query*.
+
+    Returns a list of matching segment dicts (with start, end, text, speaker).
+    Case-insensitive.  With fuzzy=True, also matches partial/approximate terms.
+    """
+    import difflib
+
+    query_lower = query.lower()
+    matches = []
+
+    for seg in segments:
+        text = seg["text"].strip()
+        text_lower = text.lower()
+
+        if fuzzy:
+            # Accept if query is a substring OR SequenceMatcher ratio is high
+            ratio = difflib.SequenceMatcher(None, query_lower, text_lower).ratio()
+            matched = (query_lower in text_lower) or (ratio >= 0.6)
+        else:
+            matched = query_lower in text_lower
+
+        if matched:
+            matches.append({
+                "start": seg["start"],
+                "end": seg["end"],
+                "text": text,
+                "speaker": seg.get("speaker"),
+            })
+
+    return matches
+
+
+def format_search_results(matches, query):
+    """Format search results for display."""
+    if not matches:
+        return f'No matches found for: "{query}"'
+
+    lines = [f'🔍 {len(matches)} match(es) for "{query}":']
+    for m in matches:
+        ts = _fmt_chapter_ts(m["start"])
+        speaker = f"[{m['speaker']}] " if m.get("speaker") else ""
+        lines.append(f"  [{ts}]  {speaker}{m['text']}")
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -1105,6 +1499,7 @@ def transcribe_file(audio_path, pipeline, args):
 EXT_MAP = {
     "text": ".txt", "json": ".json", "srt": ".srt",
     "vtt": ".vtt", "tsv": ".tsv", "lrc": ".lrc", "html": ".html",
+    "ass": ".ass", "ttml": ".ttml",
 }
 
 
@@ -1122,6 +1517,14 @@ def format_result(result, fmt, max_words_per_line=None):
         return to_lrc(result["segments"])
     if fmt == "html":
         return to_html(result)
+    if fmt == "ass":
+        return to_ass(result["segments"], max_words_per_line=max_words_per_line)
+    if fmt == "ttml":
+        return to_ttml(
+            result["segments"],
+            language=result.get("language", "en"),
+            max_words_per_line=max_words_per_line,
+        )
     return to_text(result["segments"])
 
 
@@ -1178,8 +1581,8 @@ def main():
 
     # --- Positional ---
     p.add_argument(
-        "audio", nargs="+", metavar="AUDIO",
-        help="Audio file(s), directory, glob pattern, or URL",
+        "audio", nargs="*", metavar="AUDIO",
+        help="Audio file(s), directory, glob pattern, or URL. Optional when --rss is used.",
     )
 
     # --- Model & language ---
@@ -1227,7 +1630,7 @@ def main():
     # --- Output format ---
     p.add_argument(
         "-f", "--format", default="text",
-        choices=["text", "json", "srt", "vtt", "tsv", "lrc", "html"],
+        choices=["text", "json", "srt", "vtt", "tsv", "lrc", "html", "ass", "ttml"],
         help="Output format (default: text)",
     )
     p.add_argument(
@@ -1520,6 +1923,63 @@ def main():
         help="Upgrade faster-whisper in the skill venv and exit",
     )
 
+    # --- RSS / Podcast ---
+    p.add_argument(
+        "--rss", default=None, metavar="URL",
+        help="Podcast RSS feed URL — extracts audio enclosures and transcribes them. "
+             "AUDIO positional is optional when --rss is used.",
+    )
+    p.add_argument(
+        "--rss-latest", type=int, default=5, metavar="N",
+        help="Number of most-recent episodes to process from --rss feed "
+             "(default: 5; use 0 for all episodes)",
+    )
+
+    # --- Reliability ---
+    p.add_argument(
+        "--retries", type=int, default=0, metavar="N",
+        help="Retry failed files up to N times with exponential backoff "
+             "(default: 0 = no retry; incompatible with --parallel)",
+    )
+
+    # --- Transcript search ---
+    p.add_argument(
+        "--search", default=None, metavar="TERM",
+        help="Search the transcript for TERM and print matching segments with timestamps. "
+             "Replaces the normal transcript output (use with -o to save search results to file).",
+    )
+    p.add_argument(
+        "--search-fuzzy", action="store_true",
+        help="Use fuzzy/approximate matching with --search (useful for typos or partial words)",
+    )
+
+    # --- Chapter detection ---
+    p.add_argument(
+        "--detect-chapters", action="store_true",
+        help="Detect chapter/section breaks from silence gaps between segments and print chapter markers.",
+    )
+    p.add_argument(
+        "--chapter-gap", type=float, default=8.0, metavar="SEC",
+        help="Minimum silence gap in seconds to start a new chapter (default: 8.0)",
+    )
+    p.add_argument(
+        "--chapters-file", default=None, metavar="PATH",
+        help="Write chapter markers to this file (default: print to stdout alongside transcript). "
+             "Format is controlled by --chapter-format.",
+    )
+    p.add_argument(
+        "--chapter-format", default="youtube",
+        choices=["youtube", "text", "json"],
+        help="Chapter output format: youtube (M:SS Title), text (Title: HH:MM:SS), json (default: youtube)",
+    )
+
+    # --- Speaker audio export ---
+    p.add_argument(
+        "--export-speakers", default=None, metavar="DIR",
+        help="After diarization, export each speaker's audio turns to separate WAV files in DIR. "
+             "Requires --diarize and ffmpeg.",
+    )
+
     # --- Backward compat (hidden) ---
     p.add_argument("-j", "--json", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--vad", action="store_true", help=argparse.SUPPRESS)
@@ -1530,6 +1990,10 @@ def main():
         args.format = "json"
     if args.precise:
         args.word_timestamps = True
+
+    # Validate: need at least one audio source
+    if not args.audio and not args.rss:
+        p.error("AUDIO file(s) are required, or use --rss to specify a podcast feed")
 
     # Apply HuggingFace token to environment early (model loading picks it up)
     if args.hf_token:
@@ -1573,7 +2037,19 @@ def main():
     # ---- Resolve inputs (including stdin '-') ----
     temp_dirs = []
     stdin_tmp = None
-    raw_inputs = args.audio
+    raw_inputs = list(args.audio)  # mutable copy
+
+    # Handle --rss: fetch podcast episodes and prepend their URLs
+    if args.rss:
+        rss_episodes = fetch_rss_episodes(
+            args.rss,
+            latest=args.rss_latest if args.rss_latest != 0 else None,
+            quiet=args.quiet,
+        )
+        if not args.quiet:
+            for _, title in rss_episodes:
+                print(f"   📻 {title}", file=sys.stderr)
+        raw_inputs = [url for url, _ in rss_episodes] + raw_inputs
 
     # Check for stdin '-' usage
     if "-" in raw_inputs:
@@ -1619,6 +2095,12 @@ def main():
 
     if compute_type == "auto":
         compute_type = "float16" if device == "cuda" else "int8"
+
+    if cuda_ok and compute_type == "float16" and args.compute_type == "auto":
+        import re as _re
+        gpu_name = gpu_name or ""
+        if _re.search(r"RTX 30[0-9]{2}", gpu_name, _re.IGNORECASE):
+            print(f"💡 Tip: For {gpu_name}, --compute-type int8_float16 saves ~1GB VRAM with minimal quality loss", file=sys.stderr)
 
     use_batched = not args.no_batch
 
@@ -1681,6 +2163,7 @@ def main():
 
     # ---- Transcribe ----
     results = []
+    failed_files = []
     total_audio = 0
     wall_start = time.time()
 
@@ -1702,6 +2185,8 @@ def main():
                 "benefit is limited vs sequential batched mode",
                 file=sys.stderr,
             )
+        if args.retries and not args.quiet:
+            print("⚠️  --retries is not supported with --parallel (ignored)", file=sys.stderr)
         pending = [af for af in audio_files if not _should_skip(af)]
         with ThreadPoolExecutor(max_workers=args.parallel) as executor:
             future_to_path = {
@@ -1717,7 +2202,8 @@ def main():
                     results.append(r)
                     total_audio += r["duration"]
                 except Exception as e:
-                    print(f"Error: {name}: {e}", file=sys.stderr)
+                    print(f"❌ {name}: {e}", file=sys.stderr)
+                    failed_files.append((af, str(e)))
     else:
         for audio_path in audio_files:
             name = Path(audio_path).name
@@ -1728,14 +2214,35 @@ def main():
             if not args.quiet and is_batch:
                 print(f"▶️  {name}", file=sys.stderr)
 
-            try:
-                r = transcribe_file(audio_path, pipe, args)
-                # Store the original audio_path on result for stats/template use
-                r["_audio_path"] = audio_path
-                results.append(r)
-                total_audio += r["duration"]
-            except Exception as e:
-                print(f"Error: {name}: {e}", file=sys.stderr)
+            success = False
+            last_error = None
+            max_attempts = args.retries + 1
+            for attempt in range(max_attempts):
+                try:
+                    r = transcribe_file(audio_path, pipe, args)
+                    # Store the original audio_path on result for stats/template use
+                    r["_audio_path"] = audio_path
+                    results.append(r)
+                    total_audio += r["duration"]
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = e
+                    if attempt < args.retries:
+                        wait = 2 ** (attempt + 1)
+                        print(
+                            f"⚠️  {name}: attempt {attempt + 1}/{max_attempts} failed: {e}. "
+                            f"Retrying in {wait}s...",
+                            file=sys.stderr,
+                        )
+                        time.sleep(wait)
+
+            if not success:
+                print(
+                    f"❌ {name}: failed after {max_attempts} attempt(s): {last_error}",
+                    file=sys.stderr,
+                )
+                failed_files.append((audio_path, str(last_error)))
                 if not is_batch:
                     sys.exit(1)
 
@@ -1765,12 +2272,33 @@ def main():
             # Rebuild full text from merged segments
             r["text"] = " ".join(s["text"].strip() for s in r["segments"]).strip()
 
-        # Streaming mode already printed segments to stdout
+        # ---- Speaker audio export (requires diarization) ----
+        if getattr(args, "export_speakers", None):
+            if not args.diarize:
+                if not args.quiet:
+                    print("⚠️  --export-speakers requires --diarize; skipping", file=sys.stderr)
+            else:
+                audio_src = r.get("_audio_path", r["file"])
+                export_speakers_audio(
+                    audio_src, r.get("segments", []),
+                    args.export_speakers, quiet=args.quiet,
+                )
+
+        # ---- Streaming mode already printed segments to stdout ----
         if args.stream and not args.output:
             _write_stats(r, args)
             continue
 
-        output = format_result(r, args.format, max_words_per_line=args.max_words_per_line)
+        # ---- Transcript search mode ----
+        if getattr(args, "search", None):
+            matches = search_transcript(
+                r.get("segments", []),
+                args.search,
+                fuzzy=getattr(args, "search_fuzzy", False),
+            )
+            output = format_search_results(matches, args.search)
+        else:
+            output = format_result(r, args.format, max_words_per_line=args.max_words_per_line)
 
         # Determine output filename stem for template/stats
         audio_path = r.get("_audio_path", r["file"])
@@ -1801,6 +2329,38 @@ def main():
                 print(f"\n=== {r['file']} ===")
             print(output)
 
+        # ---- Chapter detection ----
+        if getattr(args, "detect_chapters", False) and r.get("segments"):
+            chapters = detect_chapters(r["segments"], min_gap=args.chapter_gap)
+            chapters_output = format_chapters_output(chapters, fmt=args.chapter_format)
+            if not args.quiet:
+                if not chapters or len(chapters) == 1:
+                    print(
+                        f"ℹ️  Chapter detection: only 1 chapter found "
+                        f"(no silence gaps ≥ {args.chapter_gap}s)",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        f"📑 {len(chapters)} chapter(s) detected "
+                        f"(gap threshold: {args.chapter_gap}s):",
+                        file=sys.stderr,
+                    )
+
+            chapters_dest = getattr(args, "chapters_file", None)
+            if chapters_dest:
+                Path(chapters_dest).parent.mkdir(parents=True, exist_ok=True)
+                Path(chapters_dest).write_text(chapters_output, encoding="utf-8")
+                if not args.quiet:
+                    print(f"📑 Chapters saved: {chapters_dest}", file=sys.stderr)
+            else:
+                # Print to stdout (after normal transcript output)
+                print("\n" + chapters_output)
+
+            # For JSON output, embed chapters in the result too
+            if args.format == "json":
+                r["chapters"] = chapters
+
         # Write stats sidecar
         _write_stats(r, args)
 
@@ -1826,6 +2386,10 @@ def main():
             f"in {format_duration(wall)} ({rt:.1f}× realtime)",
             file=sys.stderr,
         )
+        if failed_files:
+            print(f"❌ Failed: {len(failed_files)} file(s):", file=sys.stderr)
+            for path, err in failed_files:
+                print(f"   • {Path(path).name}: {err}", file=sys.stderr)
 
 
 def _write_stats(r, args):
