@@ -16,13 +16,29 @@ INSTALL_DIARIZE=false
 for arg in "$@"; do
     case "$arg" in
         --diarize) INSTALL_DIARIZE=true ;;
+        --update)
+            # Upgrade faster-whisper in existing venv without full reinstall
+            if [ ! -d "$VENV_DIR" ]; then
+                echo "❌ No venv found at $VENV_DIR — run ./setup.sh first"
+                exit 1
+            fi
+            if command -v uv &> /dev/null; then
+                uv pip install --python "$VENV_DIR/bin/python" --upgrade faster-whisper
+            else
+                "$VENV_DIR/bin/pip" install --upgrade faster-whisper
+            fi
+            echo "✅ faster-whisper updated"
+            "$VENV_DIR/bin/python" -c "import faster_whisper; print(f'Version: {faster_whisper.__version__}')"
+            exit 0
+            ;;
         --help|-h)
-            echo "Usage: ./setup.sh [--diarize]"
+            echo "Usage: ./setup.sh [--diarize] [--update]"
             echo ""
             echo "Options:"
             echo "  --diarize    Also install pyannote.audio for speaker diarization"
             echo "               Requires HuggingFace token at ~/.cache/huggingface/token"
             echo "               and model agreement at https://hf.co/pyannote/speaker-diarization-3.1"
+            echo "  --update     Upgrade faster-whisper in the existing venv without full reinstall"
             exit 0
             ;;
     esac

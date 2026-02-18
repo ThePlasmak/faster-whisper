@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-02-18
+
+- Added VAD tuning parameters (--vad-threshold, --vad-neg-threshold, --min-speech-duration, --max-speech-duration, --min-silence-duration, --speech-pad)
+- Added temperature control (--temperature) for hallucination-prone audio
+- Added no-speech threshold (--no-speech-threshold) to filter noise segments
+- Added min/max speaker hints for diarization (--min-speakers, --max-speakers)
+- Added TSV output format for OpenAI Whisper interoperability
+- Added --update flag to upgrade faster-whisper without full re-setup
+- Added --version flag to show installed version
+- Added --hf-token for direct HuggingFace token passing
+- Added --max-words-per-line for better subtitle readability
+- Added --revision for pinning specific model revisions
+- Added --threads for CPU thread control
+- Added beam search tuning (--best-of, --patience)
+- Added anti-repetition controls (--repetition-penalty, --no-repeat-ngram-size)
+- Bumped minimum faster-whisper requirement to >=1.2.1
+
 ## [1.0.1] - 2026-01-28
 
 Remove install metadata (as ClawdHub's install section is confusing); add python3 to required binaries

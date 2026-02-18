@@ -780,7 +780,7 @@ def transcribe_file(audio_path, pipeline, args):
         kw["no_repeat_ngram_size"] = args.no_repeat_ngram_size
 
     # --- Advanced inference params (Part 1 new flags) ---
-    if args.without_timestamps:
+    if args.no_timestamps:
         conflicts = (
             args.word_timestamps
             or args.format in ("srt", "vtt", "tsv")
@@ -788,7 +788,7 @@ def transcribe_file(audio_path, pipeline, args):
         )
         if conflicts:
             print(
-                "⚠️  --without-timestamps ignored: incompatible with "
+                "⚠️  --no-timestamps ignored: incompatible with "
                 "--word-timestamps / --format srt/vtt/tsv / --diarize",
                 file=sys.stderr,
             )
@@ -1171,7 +1171,7 @@ def main():
 
     # --- Advanced inference tuning ---
     p.add_argument(
-        "--without-timestamps", action="store_true",
+        "--no-timestamps", action="store_true",
         help="Output text segments without timing information (faster; "
              "incompatible with --word-timestamps, --format srt/vtt/tsv, --diarize)",
     )

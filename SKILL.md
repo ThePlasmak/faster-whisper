@@ -305,7 +305,7 @@ Inference Tuning:
   --no-repeat-ngram-size N  Prevent n-gram repetitions of this size (default: 0 = off)
 
 Advanced Inference:
-  --without-timestamps  Output text without timing info (faster; incompatible with
+  --no-timestamps       Output text without timing info (faster; incompatible with
                         --word-timestamps, --format srt/vtt/tsv, --diarize)
   --chunk-length N      Audio chunk length in seconds for batched inference (default: auto)
   --language-detection-threshold T
