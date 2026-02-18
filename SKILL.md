@@ -4,7 +4,7 @@ description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI
 version: 1.13.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
-tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization"]
+tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization", "podcast", "chapters", "search", "csv", "ttml", "batch"]
 platforms: ["linux", "macos", "wsl2"]
 metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["python3"],"optionalBins":["ffmpeg","yt-dlp"],"optionalPaths":["~/.cache/huggingface/token"]}}}
 ---
@@ -17,25 +17,43 @@ Local speech-to-text using faster-whisper — a CTranslate2 reimplementation of 
 
 Use this skill when you need to:
 - **Transcribe audio/video files** — meetings, interviews, podcasts, lectures, YouTube videos
-- **Generate subtitles** — SRT and VTT output with word-level timestamps
+- **Generate subtitles** — SRT, VTT, ASS, LRC, or TTML broadcast-standard subtitles
 - **Identify speakers** — diarization labels who said what (`--diarize`)
 - **Transcribe from URLs** — YouTube links and direct audio URLs (auto-downloads via yt-dlp)
-- **Batch process files** — glob patterns, directories, skip-existing support
+- **Transcribe podcast feeds** — `--rss <feed-url>` fetches and transcribes episodes
+- **Batch process files** — glob patterns, directories, skip-existing support; ETA shown automatically
 - **Convert speech to text locally** — no API costs, works offline (after model download)
 - **Translate to English** — translate any language to English with `--translate`
 - **Multilingual transcription** — supports 99+ languages with auto-detection
+- **Mixed-language batch** — `--language-map` assigns a different language per file
 - **Code-switching audio** — `--multilingual` for mixed-language content
 - **Prime for domain terms** — use `--initial-prompt` for jargon-heavy content
 - **Preprocess noisy audio** — `--normalize` and `--denoise` before transcription
 - **Stream output** — `--stream` shows segments as they're transcribed
 - **Clip time ranges** — `--clip-timestamps` to transcribe specific sections
+- **Search the transcript** — `--search "term"` finds all timestamps where a word/phrase appears
+- **Detect chapters** — `--detect-chapters` finds section breaks from silence gaps
+- **Export speaker audio** — `--export-speakers DIR` saves each speaker's turns as separate WAV files
+- **Spreadsheet output** — `--format csv` produces a properly-quoted CSV with timestamps
 
-**Trigger phrases:** "transcribe this audio", "convert speech to text", "what did they say", "make a transcript", "audio to text", "subtitle this video", "who's speaking", "translate this audio", "translate to English"
+**Trigger phrases:**
+"transcribe this audio", "convert speech to text", "what did they say", "make a transcript",
+"audio to text", "subtitle this video", "who's speaking", "translate this audio", "translate to English",
+"find where X is mentioned", "search transcript for", "when did they say", "at what timestamp",
+"add chapters", "detect chapters", "find breaks in the audio", "table of contents for this recording",
+"TTML subtitles", "DFXP subtitles", "broadcast format subtitles", "Netflix format",
+"separate audio per speaker", "export speaker audio", "split by speaker",
+"transcript as CSV", "spreadsheet output", "transcribe podcast", "podcast RSS feed",
+"different languages in batch", "per-file language"
 
 **⚠️ Agent guidance — keep invocations minimal:**
-- Default command (`./scripts/transcribe audio.mp3`) is the fastest path — don't add flags the user didn't ask for
-- Only add `--diarize` if the user asks "who said what" / "identify speakers"
-- Only add `--format srt/vtt/tsv` if the user asks for subtitles/captions or TSV output
+
+*Core rule: default command (`./scripts/transcribe audio.mp3`) is the fastest path — add flags only when the user explicitly asks for that capability.*
+
+**Transcription:**
+- Only add `--diarize` if the user asks "who said what" / "identify speakers" / "label speakers"
+- Only add `--format srt/vtt/ass/lrc/ttml` if the user asks for subtitles/captions in that format
+- Only add `--format csv` if the user asks for CSV or spreadsheet output
 - Only add `--word-timestamps` if the user needs word-level timing
 - Only add `--initial-prompt` if there's domain-specific jargon to prime
 - Only add `--translate` if the user wants non-English audio translated to English
@@ -47,8 +65,45 @@ Use this skill when you need to:
 - Only add `--min-speakers`/`--max-speakers` when you know the speaker count
 - Only add `--hf-token` if the token is not cached at `~/.cache/huggingface/token`
 - Only add `--max-words-per-line` for subtitle readability on long segments
+- Only add `--filter-hallucinations` if the transcript contains obvious artifacts (music markers, duplicates)
+- Only add `--merge-sentences` if the user asks for sentence-level subtitle cues
 - Any word-level feature auto-runs wav2vec2 alignment (~5-10s overhead)
 - `--diarize` adds ~20-30s on top of that
+
+**Search:**
+- Only add `--search "term"` when the user asks to find/locate/search for a specific word or phrase in audio
+- `--search` **replaces** the normal transcript output — it prints only matching segments with timestamps
+- Add `--search-fuzzy` only when the user mentions approximate/partial matching or typos
+- To save search results to a file, use `-o results.txt`
+
+**Chapter detection:**
+- Only add `--detect-chapters` when the user asks for chapters, sections, a table of contents, or "where does the topic change"
+- Default `--chapter-gap 8` (8-second silence = new chapter) works for most podcasts/lectures; tune down for dense content
+- `--chapter-format youtube` (default) outputs YouTube-ready timestamps; use `json` for programmatic use
+- **Always use `--chapters-file PATH`** when combining chapters with a transcript output — avoids mixing chapter markers into the transcript text
+- If the user only wants chapters (not the transcript), pipe stdout to a file with `-o /dev/null` and use `--chapters-file`
+
+**Speaker audio export:**
+- Only add `--export-speakers DIR` when the user explicitly asks to save each speaker's audio separately
+- Always pair with `--diarize` — it silently skips if no speaker labels are present
+- Requires ffmpeg; outputs `SPEAKER_1.wav`, `SPEAKER_2.wav`, etc. (or real names if `--speaker-names` is set)
+
+**Language map:**
+- Only add `--language-map` in batch mode when the user has confirmed different languages across files
+- Inline format: `"interview*.mp3=en,lecture*.mp3=fr"` — fnmatch globs on filename
+- JSON file format: `@/path/to/map.json` where the file is `{"pattern": "lang_code"}`
+
+**RSS / Podcast:**
+- Only add `--rss URL` when the user provides a podcast RSS feed URL
+- Default fetches 5 newest episodes; `--rss-latest 0` for all; `--skip-existing` to resume safely
+
+**Output format for agent relay:**
+- **Search results** (`--search`) → print directly to user; output is human-readable
+- **Chapter output** → if no `--chapters-file`, chapters appear in stdout under `=== CHAPTERS (N) ===` header after the transcript
+- **Subtitle/CSV/HTML/TTML formats** → always write to `-o` file; tell the user the output path, don't paste raw XML/CSV
+- **JSON format** → useful for programmatic post-processing; not ideal to paste in full to user
+- **Text/transcript** → safe to show directly to user for short files; summarise for long ones
+- **ETA** is printed automatically to stderr for batch jobs; no action needed
 
 **When NOT to use:**
 - Cloud-only environments without local compute

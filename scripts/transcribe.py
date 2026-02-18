@@ -2498,8 +2498,8 @@ def main():
                 if not args.quiet:
                     print(f"📑 Chapters saved: {chapters_dest}", file=sys.stderr)
             else:
-                # Print to stdout (after normal transcript output)
-                print("\n" + chapters_output)
+                # Print to stdout after transcript — clear header so agents can parse it separately
+                print(f"\n=== CHAPTERS ({len(chapters)}) ===\n{chapters_output}")
 
             # For JSON output, embed chapters in the result too
             if args.format == "json":
