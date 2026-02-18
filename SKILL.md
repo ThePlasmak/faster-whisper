@@ -1004,8 +1004,8 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - `--keep-temp` — Preserve URL-downloaded audio for re-processing
 
 **Setup:**
-- `setup.sh --check` — System diagnostic: GPU, CUDA, Python, ffmpeg, pyannote, HuggingFace token
-- ffmpeg no longer required for basic transcription (PyAV handles decoding)
+- `setup.sh --check` — System diagnostic: GPU, CUDA, Python, ffmpeg, pyannote, HuggingFace token (completes in ~12s)
+- ffmpeg no longer required for basic transcription (PyAV handles decoding); `skill.json` updated to reflect this (`ffmpeg` is now `optionalBins`)
 
 ## Troubleshooting
 

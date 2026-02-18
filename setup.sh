@@ -91,10 +91,24 @@ for arg in "$@"; do
                 else
                     echo "⚠️  CUDA in venv: not available (CPU mode; check PyTorch CUDA install)"
                 fi
-                # pyannote
-                if "$VENV_DIR/bin/python" -c "import pyannote.audio" 2>/dev/null; then
-                    PA_VER=$("$VENV_DIR/bin/python" -c "import pyannote.audio; print(pyannote.audio.__version__)" 2>/dev/null)
-                    echo "✅ pyannote.audio: $PA_VER (--diarize available)"
+                # pyannote (timeout 10s to avoid slow CUDA init hanging the check)
+                PA_RESULT=$(timeout 10 "$VENV_DIR/bin/python" -c "
+import importlib.util, sys
+spec = importlib.util.find_spec('pyannote.audio')
+if spec is None:
+    sys.exit(1)
+# Only read version from metadata, skip full import (avoids 30-60s CUDA load)
+try:
+    from importlib.metadata import version
+    print(version('pyannote.audio'))
+except Exception:
+    print('installed')
+" 2>/dev/null)
+                PA_EXIT=$?
+                if [ $PA_EXIT -eq 0 ] && [ -n "$PA_RESULT" ]; then
+                    echo "✅ pyannote.audio: $PA_RESULT (--diarize available)"
+                elif [ $PA_EXIT -eq 124 ]; then
+                    echo "⚠️  pyannote.audio: check timed out (likely installed; run --diarize to verify)"
                 else
                     echo "ℹ️  pyannote.audio: not installed (--diarize unavailable; run ./setup.sh --diarize)"
                 fi

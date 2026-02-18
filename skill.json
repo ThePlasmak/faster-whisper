@@ -14,10 +14,10 @@
   ],
   "requires": {
     "bins": [
-      "python3",
-      "ffmpeg"
+      "python3"
     ],
     "optionalBins": [
+      "ffmpeg",
       "yt-dlp"
     ],
     "optionalPaths": [

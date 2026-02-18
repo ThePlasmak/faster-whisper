@@ -1278,8 +1278,8 @@ def export_speakers_audio(audio_path, segments, output_dir, quiet=False):
 
     if not speaker_ranges:
         print(
-            "⚠️  No speaker labels found in segments.\n"
-            "     Run with --diarize to enable speaker audio export.",
+            "⚠️  No speaker-labeled segments found — diarization produced no speakers.\n"
+            "     This usually means no speech was detected in the audio.",
             file=sys.stderr,
         )
         return

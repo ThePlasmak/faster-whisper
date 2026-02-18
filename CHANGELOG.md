@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 - Fixed orphaned punctuation after filler removal: double commas (`,,`), orphaned commas before terminal punctuation (`,?` → `?`), and leading punctuation are now cleaned up correctly
 - Fixed fuzzy search comparing short queries against full segment text (always low ratio): now checks individual word tokens so `--search "wrld" --search-fuzzy` correctly matches "world"
 - Fixed URL input + `--detect-language-only` not cleaning up downloaded temp directories before exiting; also changed error handling to continue processing remaining files instead of exiting on first error
+- Fixed `setup.sh --check` hanging for 60+ seconds when pyannote.audio is installed: now uses `importlib.util.find_spec` + metadata version lookup instead of a full `import pyannote.audio` (avoids slow CUDA/model initialization); check now completes in ~12s
+- Fixed `skill.json`: moved `ffmpeg` from `requires.bins` to `optionalBins` — ffmpeg is not required for basic transcription (PyAV handles decoding); only needed for `--burn-in`, `--normalize`, `--denoise`, `--channel`, `--export-speakers`
 
 **Subtitle formats:**
 - Added `--format ass` — Advanced SubStation Alpha (Aegisub, VLC, mpv, MPC-HC)
