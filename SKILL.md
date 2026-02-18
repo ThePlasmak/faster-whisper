@@ -42,6 +42,9 @@ Use this skill when you need to:
 "find where X is mentioned", "search transcript for", "when did they say", "at what timestamp",
 "add chapters", "detect chapters", "find breaks in the audio", "table of contents for this recording",
 "TTML subtitles", "DFXP subtitles", "broadcast format subtitles", "Netflix format",
+"ASS subtitles", "aegisub format", "advanced substation alpha", "mpv subtitles",
+"LRC subtitles", "timed lyrics", "karaoke subtitles", "music player lyrics",
+"HTML transcript", "confidence-colored transcript", "color-coded transcript",
 "separate audio per speaker", "export speaker audio", "split by speaker",
 "transcript as CSV", "spreadsheet output", "transcribe podcast", "podcast RSS feed",
 "different languages in batch", "per-file language",
@@ -102,6 +105,7 @@ Use this skill when you need to:
 - `--chapter-format youtube` (default) outputs YouTube-ready timestamps; use `json` for programmatic use
 - **Always use `--chapters-file PATH`** when combining chapters with a transcript output — avoids mixing chapter markers into the transcript text
 - If the user only wants chapters (not the transcript), pipe stdout to a file with `-o /dev/null` and use `--chapters-file`
+- **Batch mode limitation:** `--chapters-file` takes a single path — in batch mode, each file's chapters overwrite the previous. For batch chapter detection, omit `--chapters-file` (chapters print to stdout under `=== CHAPTERS (N) ===`) or use a separate run per file
 
 **Speaker audio export:**
 - Only add `--export-speakers DIR` when the user explicitly asks to save each speaker's audio separately
@@ -116,10 +120,11 @@ Use this skill when you need to:
 **RSS / Podcast:**
 - Only add `--rss URL` when the user provides a podcast RSS feed URL
 - Default fetches 5 newest episodes; `--rss-latest 0` for all; `--skip-existing` to resume safely
+- **Always use `-o <dir>`** with `--rss` — without it, all episode transcripts print to stdout concatenated, which is hard to use; each episode gets its own file when `-o <dir>` is set
 
 **Output format for agent relay:**
 - **Search results** (`--search`) → print directly to user; output is human-readable
-- **Chapter output** → if no `--chapters-file`, chapters appear in stdout under `=== CHAPTERS (N) ===` header after the transcript
+- **Chapter output** → if no `--chapters-file`, chapters appear in stdout under `=== CHAPTERS (N) ===` header after the transcript; with `--format json`, chapters are also embedded in the JSON under `"chapters"` key
 - **Subtitle formats** (SRT, VTT, ASS, LRC, TTML) → always write to `-o` file; tell the user the output path, never paste raw subtitle content
 - **Data formats** (CSV, HTML, TTML, JSON) → always write to `-o` file; tell the user the output path, don't paste raw XML/CSV/HTML
 - **ASS format** → for Aegisub, VLC, mpv; write to file and tell user they can open it in Aegisub or play it in VLC/mpv

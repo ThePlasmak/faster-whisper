@@ -1827,6 +1827,22 @@ def format_result(result, fmt, max_words_per_line=None, max_chars_per_line=None)
 # ---------------------------------------------------------------------------
 
 def main():
+    # Pre-import onnxruntime silently to suppress the harmless WSL2 device-discovery warning.
+    # onnxruntime writes directly to stderr fd when first imported (device_discovery.cc:211).
+    # By importing it here with fd 2 redirected, we populate sys.modules so that later
+    # lazy imports (faster_whisper's SileroVADModel) hit the cache instead of re-triggering.
+    try:
+        _old_stderr_fd = os.dup(2)
+        try:
+            with open(os.devnull, "wb") as _devnull:
+                os.dup2(_devnull.fileno(), 2)
+                import onnxruntime as _ort  # noqa: F401
+        finally:
+            os.dup2(_old_stderr_fd, 2)
+            os.close(_old_stderr_fd)
+    except Exception:
+        pass  # If anything goes wrong, just continue — stderr stays intact
+
     # Early exit handlers — must run BEFORE argparse so they work without AUDIO positional arg
     _SCRIPT_DIR = Path(__file__).parent
 
@@ -2451,7 +2467,7 @@ def main():
     if compute_type == "auto":
         compute_type = "float16" if device == "cuda" else "int8"
 
-    if cuda_ok and compute_type == "float16" and args.compute_type == "auto":
+    if cuda_ok and compute_type == "float16" and args.compute_type == "auto" and not args.quiet:
         import re as _re
         gpu_name = gpu_name or ""
         if _re.search(r"RTX 30[0-9]{2}", gpu_name, _re.IGNORECASE):
@@ -2703,6 +2719,15 @@ def main():
         lang = r.get("language", "xx")
         model_name = args.model
 
+        # ---- Pre-compute chapters (must happen before output formatting for JSON embedding) ----
+        # Stored in _computed_chapters so the display block below can reuse it without a second call.
+        _computed_chapters = None
+        if getattr(args, "detect_chapters", False) and r.get("segments"):
+            _computed_chapters = detect_chapters(r["segments"], min_gap=args.chapter_gap)
+            _formats_list = getattr(args, "_formats", [args.format])
+            if "json" in _formats_list:
+                r["chapters"] = _computed_chapters  # embed in JSON output
+
         # ---- Transcript search mode ----
         if getattr(args, "search", None):
             matches = search_transcript(
@@ -2769,9 +2794,9 @@ def main():
                             print(f"\n=== {r['file']} ===")
                         print(output)
 
-        # ---- Chapter detection ----
-        if getattr(args, "detect_chapters", False) and r.get("segments"):
-            chapters = detect_chapters(r["segments"], min_gap=args.chapter_gap)
+        # ---- Chapter detection output ----
+        if _computed_chapters is not None:
+            chapters = _computed_chapters  # reuse pre-computed result
             chapters_output = format_chapters_output(chapters, fmt=args.chapter_format)
             if not args.quiet:
                 if not chapters or len(chapters) == 1:
@@ -2796,10 +2821,6 @@ def main():
             else:
                 # Print to stdout after transcript — clear header so agents can parse it separately
                 print(f"\n=== CHAPTERS ({len(chapters)}) ===\n{chapters_output}")
-
-            # For JSON output, embed chapters in the result too
-            if args.format == "json":
-                r["chapters"] = chapters
 
         # Write stats sidecar
         _write_stats(r, args)
