@@ -1,12 +1,12 @@
 ---
 name: faster-whisper
 description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT subtitles, speaker diarization, URL/YouTube input, batch processing."
-version: 1.6.0
+version: 1.8.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization"]
 platforms: ["linux", "macos", "wsl2"]
-metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"],"optionalBins":["yt-dlp"],"optionalPaths":["~/.cache/huggingface/token"]}}}
+metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["python3"],"optionalBins":["ffmpeg","yt-dlp"],"optionalPaths":["~/.cache/huggingface/token"]}}}
 ---
 
 # Faster Whisper
@@ -72,6 +72,10 @@ Use this skill when you need to:
 | **Batch process** | `./scripts/transcribe *.mp3 -o ./transcripts/` | Output to directory |
 | **Batch with skip** | `./scripts/transcribe *.mp3 --skip-existing -o ./out/` | Resume interrupted batches |
 | **Domain terms** | `./scripts/transcribe audio.mp3 --initial-prompt 'Kubernetes gRPC'` | Boost rare terminology |
+| **Hotwords boost** | `./scripts/transcribe audio.mp3 --hotwords 'JIRA Kubernetes'` | Bias decoder toward specific words |
+| **Prefix conditioning** | `./scripts/transcribe audio.mp3 --prefix 'Good morning,'` | Seed the first segment with known opening words |
+| **Pin model version** | `./scripts/transcribe audio.mp3 --revision v1.2.0` | Reproducible transcription with a pinned revision |
+| **Debug library logs** | `./scripts/transcribe audio.mp3 --log-level debug` | Show faster_whisper internal logs |
 | **Turbo model** | `./scripts/transcribe audio.mp3 -m turbo` | Alias for large-v3-turbo |
 | **Faster English** | `./scripts/transcribe audio.mp3 --model distil-medium.en -l en` | English-only, 6.8x faster |
 | **Maximum accuracy** | `./scripts/transcribe audio.mp3 --model large-v3 --beam-size 10` | Full model |
@@ -95,6 +99,14 @@ Use this skill when you need to:
 | **Batch stats** | `./scripts/transcribe *.mp3 --stats-file ./stats/` | One stats file per input in dir |
 | **Template naming** | `./scripts/transcribe audio.mp3 -o ./out/ --output-template "{stem}_{lang}.{ext}"` | Custom batch output filenames |
 | **Stdin input** | `ffmpeg -i input.mp4 -f wav - \| ./scripts/transcribe -` | Pipe audio directly from stdin |
+| **Custom model dir** | `./scripts/transcribe audio.mp3 --model-dir ~/my-models` | Custom HuggingFace cache dir |
+| **Local model** | `./scripts/transcribe audio.mp3 -m ./my-model-ct2` | CTranslate2 model dir |
+| **HTML transcript** | `./scripts/transcribe audio.mp3 --format html -o out.html` | Confidence-colored |
+| **Burn subtitles** | `./scripts/transcribe video.mp4 --burn-in output.mp4` | Requires ffmpeg + video input |
+| **Name speakers** | `./scripts/transcribe audio.mp3 --diarize --speaker-names "Alice,Bob"` | Replaces SPEAKER_1/2 |
+| **Filter hallucinations** | `./scripts/transcribe audio.mp3 --filter-hallucinations` | Removes artifacts |
+| **Keep temp files** | `./scripts/transcribe https://... --keep-temp` | For URL re-processing |
+| **Parallel batch** | `./scripts/transcribe *.mp3 --parallel 4 -o ./out/` | CPU multi-file |
 
 ## Model Selection
 
@@ -150,6 +162,39 @@ digraph model_selection {
 
 `.en` models are English-only and slightly faster/better for English content.
 
+> **Note for distil models:** HuggingFace recommends disabling `condition_on_previous_text` for all distil models to prevent repetition loops. The script **auto-applies** `--no-condition-on-previous-text` whenever a `distil-*` model is detected. Pass `--condition-on-previous-text` to override if needed.
+
+## Custom & Fine-tuned Models
+
+WhisperModel accepts local CTranslate2 model directories and HuggingFace repo names — no code changes needed.
+
+### Load a local CTranslate2 model
+```bash
+./scripts/transcribe audio.mp3 --model /path/to/my-model-ct2
+```
+
+### Convert a HuggingFace model to CTranslate2
+```bash
+pip install ctranslate2
+ct2-transformers-converter \
+  --model openai/whisper-large-v3 \
+  --output_dir whisper-large-v3-ct2 \
+  --copy_files tokenizer.json preprocessor_config.json \
+  --quantization float16
+./scripts/transcribe audio.mp3 --model ./whisper-large-v3-ct2
+```
+
+### Load a model by HuggingFace repo name (auto-downloads)
+```bash
+./scripts/transcribe audio.mp3 --model username/whisper-large-v3-ct2
+```
+
+### Custom model cache directory
+By default, models are cached in `~/.cache/huggingface/`. Use `--model-dir` to override:
+```bash
+./scripts/transcribe audio.mp3 --model-dir ~/my-models
+```
+
 ## Setup
 
 ### Linux / macOS / WSL2
@@ -162,7 +207,8 @@ digraph model_selection {
 ```
 
 Requirements:
-- Python 3.10+, ffmpeg
+- Python 3.10+
+- ffmpeg is **not required** for basic transcription — PyAV (bundled with faster-whisper) handles audio decoding. ffmpeg is only needed for `--burn-in`, `--normalize`, and `--denoise`.
 - Optional: yt-dlp (for URL/YouTube input)
 - Optional: pyannote.audio (for `--diarize`, installed via `setup.sh --diarize`)
 
@@ -257,9 +303,10 @@ Model & Language:
   --translate           Translate any language to English (instead of transcribing)
   --multilingual        Enable multilingual/code-switching mode (helps smaller models)
   --hf-token TOKEN      HuggingFace token for private/gated models and diarization
+  --model-dir PATH      Custom model cache directory (default: ~/.cache/huggingface/)
 
 Output Format:
-  -f, --format FMT      text | json | srt | vtt | tsv | lrc (default: text)
+  -f, --format FMT      text | json | srt | vtt | tsv | lrc | html (default: text)
   --word-timestamps     Include word-level timestamps (wav2vec2 aligned automatically)
   --stream              Output segments as they are transcribed (disables diarize/alignment)
   --max-words-per-line N  For SRT/VTT, split segments into sub-cues of at most N words
@@ -290,7 +337,10 @@ Inference Tuning:
   --hallucination-silence-threshold SEC
                         Skip silent sections where model hallucinates (e.g. 1.0)
   --no-condition-on-previous-text
-                        Don't condition on previous text (reduces repetition loops)
+                        Don't condition on previous text (reduces repetition/hallucination loops;
+                        auto-enabled for distil models per HuggingFace recommendation)
+  --condition-on-previous-text
+                        Force-enable conditioning on previous text (overrides auto-disable for distil models)
   --compression-ratio-threshold RATIO
                         Filter segments above this compression ratio (default: 2.4)
   --log-prob-threshold PROB
@@ -332,6 +382,8 @@ Advanced:
   --diarize             Speaker diarization (requires pyannote.audio)
   --min-speakers N      Minimum number of speakers hint for diarization
   --max-speakers N      Maximum number of speakers hint for diarization
+  --speaker-names NAMES Comma-separated names to replace SPEAKER_1, SPEAKER_2 (e.g. 'Alice,Bob')
+                        Requires --diarize
   --min-confidence PROB Filter segments below this avg word confidence (0.0–1.0)
   --skip-existing       Skip files whose output already exists (batch mode)
   --detect-language-only
@@ -339,6 +391,12 @@ Advanced:
                         With --format json: {"language": "en", "language_probability": 0.984}
   --stats-file PATH     Write JSON stats sidecar after transcription (processing time, RTF, word count, etc.)
                         Directory path → writes {stem}.stats.json inside; file path → exact path
+  --burn-in OUTPUT      Burn subtitles into the original video (single-file mode only; requires ffmpeg)
+  --filter-hallucinations
+                        Filter common Whisper hallucinations: music/applause markers, duplicate segments,
+                        'Thank you for watching', lone punctuation, etc.
+  --keep-temp           Keep temp files from URL downloads (useful for re-processing without re-downloading)
+  --parallel N          Number of parallel workers for batch processing (default: sequential)
 
 Device:
   --device DEV          auto | cpu | cuda (default: auto)
@@ -346,6 +404,8 @@ Device:
                         int8_float16 = hybrid mode for GPU (saves VRAM, minimal quality loss)
   --threads N           CPU thread count for CTranslate2 (default: auto)
   -q, --quiet           Suppress progress and status messages
+  --log-level LEVEL     Set faster_whisper library logging level: debug | info | warning | error
+                        (default: warning; use debug to see CTranslate2/VAD internals)
 
 Utility:
   --version             Print installed faster-whisper version and exit
@@ -564,10 +624,30 @@ Batch mode prints a summary after all files complete:
 - **Efficiency**: Lower memory usage via quantization
 - **Production-ready**: Stable C++ backend (CTranslate2)
 - **Distilled models**: ~6x faster with <1% accuracy loss
-- **Subtitles**: Native SRT/VTT output
+- **Subtitles**: Native SRT/VTT/HTML output
 - **Precise alignment**: Automatic wav2vec2 refinement (~10ms word boundaries)
-- **Diarization**: Optional speaker identification via pyannote
-- **URLs**: Direct YouTube/URL input
+- **Diarization**: Optional speaker identification via pyannote; `--speaker-names` maps to real names
+- **URLs**: Direct YouTube/URL input; `--keep-temp` preserves downloads for re-use
+- **Custom models**: Load local CTranslate2 dirs or HuggingFace repos; `--model-dir` controls cache
+- **Quality control**: `--filter-hallucinations` strips music/applause markers and duplicates
+- **Parallel batch**: `--parallel N` for multi-threaded batch processing
+- **Subtitle burn-in**: `--burn-in` overlays subtitles directly into video via ffmpeg
+
+### v1.8.0 New Features
+- **Auto-disable `condition_on_previous_text` for distil models** — Applied automatically per HuggingFace recommendation; prevents repetition loops with the default distil-large-v3.5 model. Pass `--condition-on-previous-text` to override.
+- **`--condition-on-previous-text`** — Explicit override to force-enable conditioning (opt-out of the auto-disable)
+- **`--log-level LEVEL`** — Control faster_whisper library logging (`debug`/`info`/`warning`/`error`); useful for debugging VAD or CTranslate2 internals
+- **ffmpeg no longer required for basic use** — PyAV (bundled with faster-whisper) handles audio decoding; ffmpeg only needed for `--burn-in`, `--normalize`, `--denoise`
+
+### v1.7.0 New Features
+- `--model-dir PATH` — Custom HuggingFace model cache directory
+- `--format html` — HTML transcript with per-word confidence coloring (green/yellow/red)
+- `--burn-in OUTPUT` — Burn subtitles directly into video with ffmpeg
+- `--speaker-names "Alice,Bob"` — Map SPEAKER_1/2 to real names (requires `--diarize`)
+- `--filter-hallucinations` — Strip music/applause markers, "Thank you for watching", duplicates
+- `--keep-temp` — Preserve URL-downloaded audio for re-processing
+- `--parallel N` — Parallel batch processing with ThreadPoolExecutor
+- Local/fine-tuned model support: pass any local CTranslate2 path or HuggingFace repo to `--model`
 
 ## Troubleshooting
 

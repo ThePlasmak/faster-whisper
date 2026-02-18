@@ -22,7 +22,10 @@ import argparse
 import tempfile
 import subprocess
 import shutil
+import re
+import logging
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     from faster_whisper import WhisperModel, BatchedInferencePipeline
@@ -198,6 +201,182 @@ def to_lrc(segments):
 
 
 # ---------------------------------------------------------------------------
+# HTML output
+# ---------------------------------------------------------------------------
+
+def to_html(result):
+    """Format transcript as HTML with confidence-colored words."""
+    file_name = result.get("file", "")
+    language = result.get("language", "")
+    duration = result.get("duration", 0)
+    segments = result.get("segments", [])
+
+    def fmt_ts(s):
+        h = int(s // 3600)
+        m = int((s % 3600) // 60)
+        sec = s % 60
+        return f"{h:02d}:{m:02d}:{sec:06.3f}" if h else f"{m:02d}:{sec:06.3f}"
+
+    segs_html = []
+    for seg in segments:
+        ts = f'<span class="ts">[{fmt_ts(seg["start"])} → {fmt_ts(seg["end"])}]</span>'
+        speaker_html = ""
+        if seg.get("speaker"):
+            speaker_html = f' <span class="speaker">[{seg["speaker"]}]</span>'
+
+        words = seg.get("words")
+        if words:
+            word_parts = []
+            for w in words:
+                p = w.get("probability", 1.0)
+                if p >= 0.9:
+                    cls = "conf-high"
+                elif p >= 0.7:
+                    cls = "conf-med"
+                else:
+                    cls = "conf-low"
+                word_parts.append(f'<span class="{cls}" title="{p:.2f}">{w["word"]}</span>')
+            text_html = "".join(word_parts)
+        else:
+            text_html = seg.get("text", "").strip()
+
+        segs_html.append(
+            f'<div class="seg">{ts}{speaker_html} <span class="text">{text_html}</span></div>'
+        )
+
+    dur_str = f"{int(duration // 60)}m{int(duration % 60)}s" if duration else ""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transcript: {file_name}</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 820px; margin: 2em auto; padding: 0 1em; color: #222; line-height: 1.6; }}
+    h1 {{ font-size: 1.4em; color: #333; margin-bottom: 0.2em; }}
+    .meta {{ color: #888; font-size: 0.85em; margin-bottom: 1.5em; }}
+    .seg {{ margin: 0.5em 0; padding: 0.3em 0.5em; border-left: 3px solid #ddd; }}
+    .seg:hover {{ background: #f9f9f9; }}
+    .ts {{ color: #888; font-size: 0.8em; font-family: monospace; }}
+    .speaker {{ font-weight: bold; color: #0066cc; }}
+    .text {{ }}
+    .conf-high {{ background: #d4edda; border-radius: 2px; }}
+    .conf-med  {{ background: #fff3cd; border-radius: 2px; }}
+    .conf-low  {{ background: #f8d7da; border-radius: 2px; }}
+    .legend {{ margin-top: 2em; font-size: 0.8em; color: #666; }}
+    .legend span {{ padding: 1px 6px; border-radius: 2px; margin-right: 6px; }}
+  </style>
+</head>
+<body>
+  <h1>📝 {file_name}</h1>
+  <div class="meta">Language: {language} &nbsp;·&nbsp; Duration: {dur_str}</div>
+  <div class="transcript">
+    {"".join(segs_html)}
+  </div>
+  <div class="legend">
+    Word confidence: <span class="conf-high">≥90%</span>
+    <span class="conf-med">70–89%</span>
+    <span class="conf-low">&lt;70%</span>
+  </div>
+</body>
+</html>"""
+
+
+# ---------------------------------------------------------------------------
+# Hallucination filter
+# ---------------------------------------------------------------------------
+
+HALLUCINATION_PATTERNS = [
+    re.compile(r'^\s*\[?\s*(music|applause|laughter|silence|inaudible|background noise)\s*\]?\s*$', re.I),
+    re.compile(r'^\s*\(?\s*(music|applause|laughter|upbeat music|dramatic music|suspenseful music|tense music|gentle music)\s*\)?\s*$', re.I),
+    re.compile(r'thank\s+you\s+for\s+watching', re.I),
+    re.compile(r'thank\s+you\s+for\s+(listening|your\s+attention)', re.I),
+    re.compile(r'subtitles?\s+by', re.I),
+    re.compile(r'(transcribed|captioned)\s+by', re.I),
+    re.compile(r'^\s*www\.\S+\s*$', re.I),
+    re.compile(r'^\s*[.!?,;:\u2026]+\s*$'),  # lone punctuation / ellipsis
+    re.compile(r'^\s*$'),                      # empty
+]
+
+
+def filter_hallucinations(segments):
+    """Remove segments matching common Whisper hallucination patterns."""
+    filtered = []
+    prev_text = None
+    for seg in segments:
+        text = seg.get("text", "").strip()
+        if any(p.search(text) for p in HALLUCINATION_PATTERNS):
+            continue
+        if text == prev_text:  # exact duplicate consecutive segment
+            continue
+        prev_text = text
+        filtered.append(seg)
+    return filtered
+
+
+# ---------------------------------------------------------------------------
+# Speaker name mapping
+# ---------------------------------------------------------------------------
+
+def apply_speaker_names(segments, names_str):
+    """Replace SPEAKER_1, SPEAKER_2, … with real names from a comma-separated list."""
+    names = [n.strip() for n in names_str.split(",") if n.strip()]
+    mapping = {}
+    for seg in segments:
+        raw = seg.get("speaker", "")
+        if raw and raw.startswith("SPEAKER_"):
+            if raw not in mapping:
+                try:
+                    idx = int(raw.split("_", 1)[1]) - 1
+                    mapping[raw] = names[idx] if 0 <= idx < len(names) else raw
+                except (ValueError, IndexError):
+                    mapping[raw] = raw
+            seg["speaker"] = mapping[raw]
+            if seg.get("words"):
+                for w in seg["words"]:
+                    if w.get("speaker") == raw:
+                        w["speaker"] = mapping[raw]
+    return segments
+
+
+# ---------------------------------------------------------------------------
+# Subtitle burn-in
+# ---------------------------------------------------------------------------
+
+def burn_subtitles(video_path, srt_content, output_path, quiet=False):
+    """Burn SRT subtitles into a video file using ffmpeg."""
+    tmp_srt = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".srt", delete=False, encoding="utf-8"
+        ) as f:
+            f.write(srt_content)
+            tmp_srt = f.name
+
+        # Escape colons/backslashes in path for ffmpeg filtergraph
+        escaped = tmp_srt.replace("\\", "/").replace(":", "\\:")
+        cmd = [
+            "ffmpeg", "-y", "-i", video_path,
+            "-vf", f"subtitles={escaped}",
+            "-c:a", "copy",
+            output_path,
+        ]
+        if not quiet:
+            print(f"🎬 Burning subtitles into {output_path}...", file=sys.stderr)
+            subprocess.run(cmd, check=True)
+        else:
+            subprocess.run(cmd, check=True, capture_output=True)
+        if not quiet:
+            print(f"✅ Burned: {output_path}", file=sys.stderr)
+    except subprocess.CalledProcessError as e:
+        print(f"⚠️  Burn-in failed: {e}", file=sys.stderr)
+    finally:
+        if tmp_srt and os.path.exists(tmp_srt):
+            os.unlink(tmp_srt)
+
+
+# ---------------------------------------------------------------------------
 # URL download
 # ---------------------------------------------------------------------------
 
@@ -295,7 +474,6 @@ def preprocess_audio(audio_path, normalize=False, denoise=False, quiet=False):
 _align_cache = {}  # reuse model across files in batch mode
 
 # Characters to strip before alignment (numbers, punctuation except apostrophe)
-import re
 _ALIGN_CLEAN = re.compile(r"[^a-z'\u00e0-\u00ff]")  # keep letters, ', accented
 
 
@@ -876,6 +1054,13 @@ def transcribe_file(audio_path, pipeline, args):
             min_speakers=args.min_speakers, max_speakers=args.max_speakers,
             hf_token=args.hf_token,
         )
+        # Apply speaker name mapping if provided
+        if getattr(args, "speaker_names", None):
+            segments = apply_speaker_names(segments, args.speaker_names)
+
+    # Filter hallucinations if requested
+    if getattr(args, "filter_hallucinations", False):
+        segments = filter_hallucinations(segments)
 
     # Cleanup preprocessing temp file
     if preprocess_tmp and os.path.exists(preprocess_tmp):
@@ -919,7 +1104,7 @@ def transcribe_file(audio_path, pipeline, args):
 
 EXT_MAP = {
     "text": ".txt", "json": ".json", "srt": ".srt",
-    "vtt": ".vtt", "tsv": ".tsv", "lrc": ".lrc",
+    "vtt": ".vtt", "tsv": ".tsv", "lrc": ".lrc", "html": ".html",
 }
 
 
@@ -935,6 +1120,8 @@ def format_result(result, fmt, max_words_per_line=None):
         return to_tsv(result["segments"])
     if fmt == "lrc":
         return to_lrc(result["segments"])
+    if fmt == "html":
+        return to_html(result)
     return to_text(result["segments"])
 
 
@@ -1032,11 +1219,15 @@ def main():
         "--hf-token", default=None, metavar="TOKEN",
         help="HuggingFace token for private models and diarization (overrides cached token)",
     )
+    p.add_argument(
+        "--model-dir", default=None, metavar="PATH",
+        help="Custom directory for model cache (default: ~/.cache/huggingface/hub)",
+    )
 
     # --- Output format ---
     p.add_argument(
         "-f", "--format", default="text",
-        choices=["text", "json", "srt", "vtt", "tsv", "lrc"],
+        choices=["text", "json", "srt", "vtt", "tsv", "lrc", "html"],
         help="Output format (default: text)",
     )
     p.add_argument(
@@ -1130,7 +1321,11 @@ def main():
     )
     p.add_argument(
         "--no-condition-on-previous-text", action="store_true",
-        help="Don't condition on previous text (reduces repetition/hallucination loops)",
+        help="Don't condition on previous text (reduces repetition/hallucination loops; auto-enabled for distil models)",
+    )
+    p.add_argument(
+        "--condition-on-previous-text", action="store_true",
+        help="Force-enable conditioning on previous text (overrides auto-disable for distil models)",
     )
     p.add_argument(
         "--compression-ratio-threshold", type=float, default=None, metavar="RATIO",
@@ -1255,6 +1450,31 @@ def main():
              "If a directory: writes {stem}.stats.json in that dir. "
              "In batch mode, one stats file per input.",
     )
+    p.add_argument(
+        "--burn-in", default=None, metavar="OUTPUT",
+        help="Burn subtitles into the original video: transcribe, then ffmpeg-overlay SRT "
+             "into the input file and save to OUTPUT (single-file mode only; requires ffmpeg)",
+    )
+    p.add_argument(
+        "--speaker-names", default=None, metavar="NAMES",
+        help="Comma-separated speaker names to replace SPEAKER_1, SPEAKER_2, etc. "
+             "(e.g. 'Alice,Bob'). Requires --diarize",
+    )
+    p.add_argument(
+        "--filter-hallucinations", action="store_true",
+        help="Filter common Whisper hallucinations: music/applause markers, "
+             "'Thank you for watching', duplicate consecutive segments, etc.",
+    )
+    p.add_argument(
+        "--keep-temp", action="store_true",
+        help="Keep temp files from URL downloads instead of deleting them "
+             "(useful for re-processing downloaded audio without re-downloading)",
+    )
+    p.add_argument(
+        "--parallel", type=int, default=None, metavar="N",
+        help="Number of parallel workers for batch processing "
+             "(default: sequential; mainly useful on CPU with many small files)",
+    )
 
     # --- Preprocessing ---
     p.add_argument(
@@ -1284,6 +1504,11 @@ def main():
         "-q", "--quiet", action="store_true",
         help="Suppress progress messages",
     )
+    p.add_argument(
+        "--log-level", default="warning",
+        choices=["debug", "info", "warning", "error"],
+        help="Set faster_whisper library logging level (default: warning)",
+    )
 
     # --- Utility ---
     p.add_argument(
@@ -1311,9 +1536,26 @@ def main():
         os.environ["HF_TOKEN"] = args.hf_token
         os.environ["HUGGING_FACE_HUB_TOKEN"] = args.hf_token
 
+    # Apply faster_whisper library logging level
+    logging.basicConfig()
+    logging.getLogger("faster_whisper").setLevel(getattr(logging, args.log_level.upper()))
+
     # Handle "turbo" alias → large-v3-turbo
     if args.model.lower() == "turbo":
         args.model = "large-v3-turbo"
+
+    # Auto-disable condition_on_previous_text for distil models (HuggingFace recommendation)
+    # Prevents repetition loops inherent to distil model architecture.
+    # Override with --condition-on-previous-text if you need the old behaviour.
+    is_distil = args.model.lower().startswith("distil-")
+    if is_distil and not args.no_condition_on_previous_text and not args.condition_on_previous_text:
+        args.no_condition_on_previous_text = True
+        if not args.quiet:
+            print(
+                "ℹ️  distil model detected: auto-disabling condition_on_previous_text "
+                "(reduces repetition loops; pass --condition-on-previous-text to override)",
+                file=sys.stderr,
+            )
 
     # Streaming mode disables post-processing that needs all segments
     if args.stream:
@@ -1396,6 +1638,8 @@ def main():
             model_kwargs["revision"] = args.revision
         if args.threads is not None:
             model_kwargs["cpu_threads"] = args.threads
+        if getattr(args, "model_dir", None):
+            model_kwargs["download_root"] = args.model_dir
         model = WhisperModel(args.model, **model_kwargs)
         pipe = BatchedInferencePipeline(model) if use_batched else model
     except Exception as e:
@@ -1440,36 +1684,68 @@ def main():
     total_audio = 0
     wall_start = time.time()
 
-    for audio_path in audio_files:
-        name = Path(audio_path).name
-
-        # Skip-existing check
+    def _should_skip(audio_path):
         if args.skip_existing and args.output:
             out_dir = Path(args.output)
             if out_dir.is_dir():
                 target = out_dir / (Path(audio_path).stem + EXT_MAP.get(args.format, ".txt"))
                 if target.exists():
                     if not args.quiet:
-                        print(f"⏭️  Skip (exists): {name}", file=sys.stderr)
-                    continue
+                        print(f"⏭️  Skip (exists): {Path(audio_path).name}", file=sys.stderr)
+                    return True
+        return False
 
-        if not args.quiet and is_batch:
-            print(f"▶️  {name}", file=sys.stderr)
+    if getattr(args, "parallel", None) and args.parallel > 1 and is_batch:
+        if device == "cuda" and not args.quiet:
+            print(
+                f"⚠️  --parallel on GPU: each call uses the full GPU; "
+                "benefit is limited vs sequential batched mode",
+                file=sys.stderr,
+            )
+        pending = [af for af in audio_files if not _should_skip(af)]
+        with ThreadPoolExecutor(max_workers=args.parallel) as executor:
+            future_to_path = {
+                executor.submit(transcribe_file, af, pipe, args): af
+                for af in pending
+            }
+            for future in as_completed(future_to_path):
+                af = future_to_path[future]
+                name = Path(af).name
+                try:
+                    r = future.result()
+                    r["_audio_path"] = af
+                    results.append(r)
+                    total_audio += r["duration"]
+                except Exception as e:
+                    print(f"Error: {name}: {e}", file=sys.stderr)
+    else:
+        for audio_path in audio_files:
+            name = Path(audio_path).name
 
-        try:
-            r = transcribe_file(audio_path, pipe, args)
-            # Store the original audio_path on result for stats/template use
-            r["_audio_path"] = audio_path
-            results.append(r)
-            total_audio += r["duration"]
-        except Exception as e:
-            print(f"Error: {name}: {e}", file=sys.stderr)
-            if not is_batch:
-                sys.exit(1)
+            if _should_skip(audio_path):
+                continue
+
+            if not args.quiet and is_batch:
+                print(f"▶️  {name}", file=sys.stderr)
+
+            try:
+                r = transcribe_file(audio_path, pipe, args)
+                # Store the original audio_path on result for stats/template use
+                r["_audio_path"] = audio_path
+                results.append(r)
+                total_audio += r["duration"]
+            except Exception as e:
+                print(f"Error: {name}: {e}", file=sys.stderr)
+                if not is_batch:
+                    sys.exit(1)
 
     # Cleanup temp dirs and stdin temp file
     for td in temp_dirs:
-        shutil.rmtree(td, ignore_errors=True)
+        if getattr(args, "keep_temp", False):
+            if not args.quiet:
+                print(f"📁 Temp files kept: {td}", file=sys.stderr)
+        else:
+            shutil.rmtree(td, ignore_errors=True)
     if stdin_tmp and os.path.exists(stdin_tmp.name):
         os.unlink(stdin_tmp.name)
 
@@ -1527,6 +1803,19 @@ def main():
 
         # Write stats sidecar
         _write_stats(r, args)
+
+        # Subtitle burn-in (single file only)
+        if getattr(args, "burn_in", None):
+            if is_batch:
+                if not args.quiet:
+                    print("⚠️  --burn-in is only supported for single-file mode; skipping", file=sys.stderr)
+            elif not r.get("segments"):
+                if not args.quiet:
+                    print("⚠️  --burn-in skipped: no speech segments detected", file=sys.stderr)
+            else:
+                srt_content = to_srt(r["segments"])
+                src_path = r.get("_audio_path", r["file"])
+                burn_subtitles(src_path, srt_content, args.burn_in, quiet=args.quiet)
 
     # Batch summary
     if is_batch and not args.quiet:
