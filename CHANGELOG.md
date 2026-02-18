@@ -2,33 +2,56 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.10.0] - 2026-02-18
-
-- Added ASS/SSA subtitle format (`--format ass`) — Advanced SubStation Alpha compatible with Aegisub, VLC, mpv, MPC-HC, and most video editors
-- Added `setup.sh --check` — quick system diagnostic verifying GPU, CUDA, Python, ffmpeg, faster-whisper version, yt-dlp, pyannote, and HuggingFace token
-- Documented pre-conversion tip: 16kHz mono WAV pre-convert for repeated processing workflows
-- Clarified faster-whisper vs whisperx: this skill covers all whisperx use cases (diarization, word timestamps, SRT/VTT/ASS)
-
 ## [1.5.0] - 2026-02-18
 
-- Added VAD tuning parameters (--vad-threshold, --vad-neg-threshold, --min-speech-duration, --max-speech-duration, --min-silence-duration, --speech-pad)
-- Added temperature control (--temperature) for hallucination-prone audio
-- Added no-speech threshold (--no-speech-threshold) to filter noise segments
-- Added min/max speaker hints for diarization (--min-speakers, --max-speakers)
-- Added TSV output format for OpenAI Whisper interoperability
-- Added --update flag to upgrade faster-whisper without full re-setup
-- Added --version flag to show installed version
-- Added --hf-token for direct HuggingFace token passing
-- Added --max-words-per-line for better subtitle readability
-- Added --revision for pinning specific model revisions
-- Added --threads for CPU thread control
-- Added beam search tuning (--best-of, --patience)
-- Added anti-repetition controls (--repetition-penalty, --no-repeat-ngram-size)
-- Bumped minimum faster-whisper requirement to >=1.2.1
+**Subtitle formats:**
+- Added `--format ass` — Advanced SubStation Alpha (Aegisub, VLC, mpv, MPC-HC)
+- Added `--format lrc` — Timed lyrics format for music players
+- Added `--format html` — Confidence-colored HTML transcript (green/yellow/red per word)
+- Added `--format ttml` — W3C TTML 1.0 / DFXP broadcast standard (Netflix, Amazon Prime, BBC)
+- Added `--format csv` — Spreadsheet-ready CSV with header row; RFC 4180 quoting; speaker column when diarized
+
+**Transcript tools:**
+- Added `--search TERM` — Find timestamps where a word/phrase appears; replaces normal output
+- Added `--search-fuzzy` — Approximate matching with `--search`
+- Added `--detect-chapters` — Auto-detect chapter breaks from silence gaps
+- Added `--chapter-gap SEC`, `--chapters-file PATH`, `--chapter-format youtube|text|json`
+- Added `--export-speakers DIR` — Save each diarized speaker's turns as separate WAV files
+
+**Batch improvements:**
+- Batch ETA: `[N/total] filename | ETA: Xm Ys` shown automatically for sequential batch jobs
+- Added `--language-map "pat=lang,..."` — Per-file language override with fnmatch glob support
+- Added `--retries N` — Retry failed files with exponential backoff; failed-file summary at end
+- Added `--rss URL` / `--rss-latest N` — Transcribe podcast RSS feeds
+- Added `--skip-existing`, `--parallel N`, `--output-template`, `--stats-file`, `--merge-sentences`
+
+**Model & inference:**
+- Changed default model to `distil-large-v3.5` (better accuracy than v3)
+- Auto-disables `condition_on_previous_text` for distil models (prevents repetition loops)
+- Added `--condition-on-previous-text` override; `--log-level` for library debug output
+- Added `--model-dir PATH` — Custom HuggingFace cache dir; local CTranslate2 model support
+- Added `--no-timestamps`, `--chunk-length`, `--length-penalty`, `--repetition-penalty`, `--no-repeat-ngram-size`
+- Added `--clip-timestamps`, `--stream`, `--progress`, `--best-of`, `--patience`, `--max-new-tokens`
+- Added `--hotwords`, `--prefix`, `--revision`, `--suppress-tokens`, `--max-initial-timestamp`
+- Added `--vad-threshold`, `--vad-neg-threshold`, `--min/max-speech-duration`, `--min-silence-duration`, `--speech-pad`
+- Added `--temperature`, `--no-speech-threshold`, `--hallucination-silence-threshold`
+
+**Speaker & quality:**
+- Added `--speaker-names "Alice,Bob"` — Replace SPEAKER_1/2 with real names
+- Added `--filter-hallucinations` — Remove music/applause markers, duplicates, artifacts
+- Added `--burn-in OUTPUT` — Burn subtitles into video via ffmpeg
+- Added `--keep-temp` — Preserve URL-downloaded audio for re-processing
+- Added `--min-speakers` / `--max-speakers` hints for diarization
+
+**Setup & agent compatibility:**
+- Added `setup.sh --check` — System diagnostic
+- ffmpeg no longer required for basic transcription (PyAV handles decoding)
+- Expanded trigger phrases and agent guidance for all new features
+- Chapter stdout output now uses `=== CHAPTERS (N) ===` separator for clean agent parsing
 
 ## [1.0.1] - 2026-01-28
 
-Remove install metadata (as ClawdHub's install section is confusing); add python3 to required binaries
+Remove install metadata; add python3 to required binaries
 
 ## [1.0.0] - 2026-01-28
 

@@ -1,7 +1,7 @@
 ---
 name: faster-whisper
 description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT/TTML/CSV subtitles, speaker diarization, URL/YouTube input, batch processing with ETA, transcript search, chapter detection, per-file language map."
-version: 1.13.0
+version: 1.5.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization", "podcast", "chapters", "search", "csv", "ttml", "batch"]
@@ -888,51 +888,46 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - **Parallel batch**: `--parallel N` for multi-threaded batch processing
 - **Subtitle burn-in**: `--burn-in` overlays subtitles directly into video via ffmpeg
 
-### v1.13.0 New Features
-- **CSV output** — `--format csv` produces a spreadsheet-ready file with a header row (`start_s,end_s,text`) using proper RFC 4180 quoting (commas/quotes in text handled correctly). Adds `speaker` column automatically when diarized.
-- **Language map** — `--language-map "pattern=lang,..."` overrides the transcription language per file in batch mode. Inline patterns support fnmatch globs (`interview*.mp3=en`). Also accepts `@path/to/map.json` for a JSON dict. Falls back to `--language` for unmatched files.
-- **Batch ETA** — sequential batch jobs now display `[N/total] filename | ETA: Xm Ys` before each file, computed from average time per completed file. Printed to stderr so OpenClaw/Clawdbot surfaces it in real time.
+### v1.5.0 New Features
+**Subtitle formats:**
+- `--format ass` — Advanced SubStation Alpha (Aegisub, VLC, mpv, MPC-HC)
+- `--format lrc` — Timed lyrics format for music players
+- `--format html` — Confidence-colored HTML transcript (green/yellow/red per word)
+- `--format ttml` — W3C TTML 1.0 (DFXP) broadcast standard (Netflix, Amazon Prime, BBC)
+- `--format csv` — Spreadsheet-ready CSV with header row; RFC 4180 quoting; `speaker` column when diarized
 
-### v1.12.0 New Features
-- **Transcript search** — `--search TERM` finds all segments containing the term and prints them with timestamps; replaces normal output so results can be piped or saved with `-o`. `--search-fuzzy` enables approximate matching.
-- **Chapter detection** — `--detect-chapters` scans silence gaps between segments and emits chapter markers. Configurable via `--chapter-gap SEC` (default: 8s). Three output formats: `youtube` (ready for YouTube description), `text`, `json`. Save to file with `--chapters-file PATH`.
-- **TTML subtitles** — `--format ttml` outputs W3C TTML 1.0 (DFXP) — the broadcast-standard format used by Netflix, Amazon Prime, BBC, and most professional video platforms. Supports speaker labels and `--max-words-per-line`.
-- **Speaker audio export** — `--export-speakers DIR` after diarization extracts each speaker's turns into separate WAV files using ffmpeg's `aselect` filter. Files named `SPEAKER_1.wav`, `SPEAKER_2.wav`, etc. (respects `--speaker-names`). Requires `--diarize` and ffmpeg.
+**Transcript tools:**
+- `--search TERM` — Find all timestamps where a word/phrase appears; replaces normal output; `-o` to save
+- `--search-fuzzy` — Approximate/partial matching with `--search`
+- `--detect-chapters` — Auto-detect chapter breaks from silence gaps; `--chapter-gap SEC` (default 8s)
+- `--chapters-file PATH` — Write chapters to file instead of stdout; `--chapter-format youtube|text|json`
+- `--export-speakers DIR` — After `--diarize`, save each speaker's turns as separate WAV files via ffmpeg
 
-### v1.11.0 New Features
-- **Podcast RSS support** — `--rss <feed-url>` fetches audio enclosures from any standard podcast RSS feed and transcribes them; `--rss-latest N` controls how many recent episodes to process (default: 5; 0 = all). No extra dependencies — uses stdlib `urllib` + `xml.etree`.
-- **Retry logic** — `--retries N` retries failed files up to N times with exponential backoff (2s, 4s, 8s, …). Failed files are listed in the batch summary.
-- **Failed-file summary** — batch mode now prints a clear `❌ Failed: N file(s)` list at the end instead of silent skips.
-- **Workflows section** — new end-to-end pipeline examples: Podcast, Meeting Notes, Video Subtitles, YouTube Batch, Noisy Audio, Batch Recovery.
+**Batch improvements:**
+- **ETA** — `[N/total] filename | ETA: Xm Ys` shown before each file in sequential batch; no flag needed
+- `--language-map "pat=lang,..."` — Per-file language override; fnmatch glob patterns; `@file.json` form
+- `--retries N` — Retry failed files with exponential backoff; failed-file summary at end
+- `--rss URL` — Transcribe podcast RSS feeds; `--rss-latest N` for episode count
+- `--skip-existing` / `--parallel N` / `--output-template` / `--stats-file` / `--merge-sentences`
 
-### v1.10.0 New Features
-- **ASS/SSA subtitle format** — `--format ass` outputs Advanced SubStation Alpha (`.ass`) compatible with Aegisub, VLC, mpv, MPC-HC, and most video editors; richer styling than SRT/VTT
-- **`setup.sh --check`** — quick system diagnostic: GPU, CUDA, Python, ffmpeg, faster-whisper version, yt-dlp, pyannote, HuggingFace token
-- **Pre-conversion tip** — documents 16kHz mono WAV pre-conversion for repeated processing workflows
-- **whisperx vs faster-whisper** — clarifies this skill covers all whisperx use cases (diarization, word timestamps, SRT/VTT); whisperx not needed
+**Model & inference:**
+- `distil-large-v3.5` default (replaced distil-large-v3)
+- Auto-disables `condition_on_previous_text` for distil models (prevents repetition loops)
+- `--condition-on-previous-text` to override; `--log-level` for library debug output
+- `--model-dir PATH` — Custom HuggingFace cache dir; local CTranslate2 model support
+- `--no-timestamps`, `--chunk-length`, `--length-penalty`, `--repetition-penalty`, `--no-repeat-ngram-size`
+- `--clip-timestamps`, `--stream`, `--progress`, `--best-of`, `--patience`, `--max-new-tokens`
+- `--hotwords`, `--prefix`, `--revision`, `--suppress-tokens`, `--max-initial-timestamp`
 
-### v1.9.0 New Features
-- **Silero VAD V6 note** — documents faster-whisper 1.2.1 upgrade to Silero VAD V6 for better speech detection
-- **Server Mode section** — documents speaches for OpenAI-compatible API serving
-- **Batch silence removal note** — documents faster-whisper 1.2.0 automatic silence removal in batched mode
-- **RTX 3070 tip** — recommends `--compute-type int8_float16` for RTX 30xx GPUs in docs and at runtime
-- **`--threads` in Quick Reference** — added to table for discoverability
-
-### v1.8.0 New Features
-- **Auto-disable `condition_on_previous_text` for distil models** — Applied automatically per HuggingFace recommendation; prevents repetition loops with the default distil-large-v3.5 model. Pass `--condition-on-previous-text` to override.
-- **`--condition-on-previous-text`** — Explicit override to force-enable conditioning (opt-out of the auto-disable)
-- **`--log-level LEVEL`** — Control faster_whisper library logging (`debug`/`info`/`warning`/`error`); useful for debugging VAD or CTranslate2 internals
-- **ffmpeg no longer required for basic use** — PyAV (bundled with faster-whisper) handles audio decoding; ffmpeg only needed for `--burn-in`, `--normalize`, `--denoise`
-
-### v1.7.0 New Features
-- `--model-dir PATH` — Custom HuggingFace model cache directory
-- `--format html` — HTML transcript with per-word confidence coloring (green/yellow/red)
-- `--burn-in OUTPUT` — Burn subtitles directly into video with ffmpeg
-- `--speaker-names "Alice,Bob"` — Map SPEAKER_1/2 to real names (requires `--diarize`)
-- `--filter-hallucinations` — Strip music/applause markers, "Thank you for watching", duplicates
+**Speaker & quality:**
+- `--speaker-names "Alice,Bob"` — Replace SPEAKER_1/2 with real names (requires `--diarize`)
+- `--filter-hallucinations` — Remove music/applause markers, duplicates, "Thank you for watching"
+- `--burn-in OUTPUT` — Burn subtitles into video via ffmpeg
 - `--keep-temp` — Preserve URL-downloaded audio for re-processing
-- `--parallel N` — Parallel batch processing with ThreadPoolExecutor
-- Local/fine-tuned model support: pass any local CTranslate2 path or HuggingFace repo to `--model`
+
+**Setup:**
+- `setup.sh --check` — System diagnostic: GPU, CUDA, Python, ffmpeg, pyannote, HuggingFace token
+- ffmpeg no longer required for basic transcription (PyAV handles decoding)
 
 ## Troubleshooting
 
