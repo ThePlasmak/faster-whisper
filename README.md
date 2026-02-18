@@ -8,7 +8,7 @@ faster-whisper is superior to OpenAI's Whisper — it's a CTranslate2 reimplemen
 
 Some scanners may flag this skill as "suspicious" because `transcribe.py` uses `subprocess` to call `yt-dlp` and `ffmpeg` with your provided URLs and file paths.
 
-It's a **false positive** — it reflects the skill's normal design (downloading and converting audio), not malicious behavior. `subprocess` is called with a list of arguments (not a shell string), preventing shell injection from Python. The flag is a heuristic pattern match, not a detection of actual malware.
+It's a **false positive** — `subprocess` is called with a list of arguments (not a shell string), preventing shell injection from Python. The flag is just a heuristic pattern match—I swear that I am not distributing malware!
 
 ## Features
 
@@ -122,7 +122,7 @@ If you want to use the transcription scripts directly without your agent:
 
 ## How to Use
 
-### With Your Agent
+### With your agent
 
 Just ask in natural language:
 
