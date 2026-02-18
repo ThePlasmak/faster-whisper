@@ -6,9 +6,9 @@ faster-whisper is superior to OpenAI's Whisper — it's a CTranslate2 reimplemen
 
 ## Note on Antivirus/VirusTotal Flags
 
-Some scanners may flag this skill as "suspicious" because `transcribe.py` uses `subprocess` to call `yt-dlp` and `ffmpeg` with your provided URLs and file paths.
+Some scanners (including VirusTotal on ClawHub) may flag this skill as "suspicious" as a specially crafted URL or file path could potentially exploit a command injection flaw within `yt-dlp` or `ffmpeg`.
 
-It's a **false positive** — `subprocess` is called with a list of arguments (not a shell string), preventing shell injection from Python. The flag is just a heuristic pattern match—I swear that I am not distributing malware!
+I swear that I am not distributing any malware — this is a normal risk of any tool that downloads and processes files from the internet. As with any such tool: be mindful of what you feed it and always back up your important files.
 
 ## Features
 
@@ -78,9 +78,9 @@ cd ~/clawd/your-agent/workspace/skills/
 unzip ~/Downloads/faster-whisper-1.0.1.zip -d faster-whisper
 ```
 
-**If you're lazy:** You can also ask your agent to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in chat.
+**If you're lazy:** You can also ask your agent to install it by pasting this repo's link (https://github.com/ThePlasmak/faster-whisper) directly in the chat.
 
-**Note:** The release zip excludes repository files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
+**Note:** The release zip excludes certain explanatory files (CHANGELOG, LICENSE, README) and only contains the skill itself — this keeps things lightweight.
 
 ## Setup
 
