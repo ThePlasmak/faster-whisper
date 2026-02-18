@@ -646,6 +646,10 @@ See `SKILL.md` for full model list and recommendations.
    - Python version
    - Full error message
 
+## See Also
+
+**[parakeet](https://github.com/ThePlasmak/parakeet)** — If you have an NVIDIA GPU and want the absolute fastest transcription, parakeet uses NVIDIA's Parakeet TDT model (NeMo) and hits ~3380× realtime on GPU — roughly 150× faster than faster-whisper on the same hardware. Trade-offs: fewer output formats, 25 European languages only (vs 99+), Linux/WSL2 only, and no diarization or advanced features.
+
 ## References
 
 - [faster-whisper GitHub](https://github.com/SYSTRAN/faster-whisper)
