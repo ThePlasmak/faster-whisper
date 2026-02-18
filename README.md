@@ -125,7 +125,7 @@ Run the transcription script directly:
 
 | Option | Short | Description |
 |--------|-------|-------------|
-| `--model` | `-m` | Model name (default: `distil-large-v3`) |
+| `--model` | `-m` | Model name (default: `distil-large-v3.5`) |
 | `--language` | `-l` | Language code (e.g., `en`, `es`, `fr`) — auto-detects if omitted |
 | `--word-timestamps` | | Include word-level timestamps |
 | `--beam-size` | | Beam search size (default: 5, higher = more accurate but slower) |
@@ -187,7 +187,7 @@ Run the transcription script directly:
 
 ## Default Model
 
-**distil-large-v3** (756MB download)
+**distil-large-v3.5** (756MB download)
 
 - ~6x faster than large-v3
 - Within ~1% accuracy of full model
@@ -239,7 +239,7 @@ See `SKILL.md` for full model list and recommendations.
 
 1. **Use a smaller model:**
    ```bash
-   # Try distil-medium instead of distil-large-v3
+   # Try distil-medium instead of distil-large-v3.5
    ./scripts/transcribe audio.mp3 --model distil-medium.en
    ```
 
@@ -258,7 +258,7 @@ See `SKILL.md` for full model list and recommendations.
 **VRAM Requirements:**
 | Model | float16 | int8 |
 |-------|---------|------|
-| distil-large-v3 | ~2GB | ~1GB |
+| distil-large-v3.5 | ~2GB | ~1GB |
 | large-v3 | ~5GB | ~2GB |
 | medium | ~3GB | ~1.5GB |
 | small | ~2GB | ~1GB |
@@ -313,7 +313,7 @@ See `SKILL.md` for full model list and recommendations.
 4. **Manual download:**
    ```python
    from faster_whisper import WhisperModel
-   model = WhisperModel("distil-large-v3", device="cpu")
+   model = WhisperModel("distil-large-v3.5", device="cpu")
    ```
 
 ### Very Slow Transcription
