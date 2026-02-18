@@ -1,7 +1,7 @@
 ---
 name: faster-whisper
 description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT/TTML/CSV subtitles, speaker diarization, URL/YouTube input, batch processing with ETA, transcript search, chapter detection, per-file language map."
-version: 1.5.0
+version: 1.5.1
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization", "podcast", "chapters", "search", "csv", "ttml", "batch"]
@@ -44,7 +44,12 @@ Use this skill when you need to:
 "TTML subtitles", "DFXP subtitles", "broadcast format subtitles", "Netflix format",
 "separate audio per speaker", "export speaker audio", "split by speaker",
 "transcript as CSV", "spreadsheet output", "transcribe podcast", "podcast RSS feed",
-"different languages in batch", "per-file language"
+"different languages in batch", "per-file language",
+"transcribe in multiple formats", "srt and txt at the same time", "output both srt and text",
+"remove filler words", "clean up ums and uhs", "strip hesitation sounds", "remove you know and I mean",
+"transcribe left channel", "transcribe right channel", "stereo channel", "left track only",
+"wrap subtitle lines", "character limit per line", "max chars per subtitle",
+"detect paragraphs", "paragraph breaks", "group into paragraphs", "add paragraph spacing"
 
 **⚠️ Agent guidance — keep invocations minimal:**
 
@@ -67,6 +72,21 @@ Use this skill when you need to:
 - Only add `--max-words-per-line` for subtitle readability on long segments
 - Only add `--filter-hallucinations` if the transcript contains obvious artifacts (music markers, duplicates)
 - Only add `--merge-sentences` if the user asks for sentence-level subtitle cues
+- Only add `--clean-filler` if the user asks to remove filler words (um, uh, you know, I mean, hesitation sounds)
+- Only add `--channel left|right` if the user mentions stereo tracks, dual-channel recordings, or asks for a specific channel
+- Only add `--max-chars-per-line N` when the user specifies a character limit per subtitle line (e.g., "Netflix format", "42 chars per line"); takes priority over `--max-words-per-line`
+- Only add `--detect-paragraphs` if the user asks for paragraph breaks or structured text output; `--paragraph-gap` (default 3.0s) only if they want a custom gap
+- Only add `--speaker-names "Alice,Bob"` when the user provides real names to replace SPEAKER_1/2 — always requires `--diarize`
+- Only add `--hotwords WORDS` when the user names specific rare terms not well served by `--initial-prompt`; prefer `--initial-prompt` for general domain jargon
+- Only add `--prefix TEXT` when the user knows the exact words the audio starts with
+- Only add `--detect-language-only` when the user only wants to identify the language, not transcribe
+- Only add `--stats-file PATH` if the user asks for performance stats, RTF, or benchmark info
+- Only add `--parallel N` for large CPU batch jobs; GPU handles one file efficiently on its own — don't add for single files or small batches
+- Only add `--retries N` for unreliable inputs (URLs, network files) where transient failures are expected
+- Only add `--burn-in OUTPUT` only when user explicitly asks to embed/burn subtitles into the video; requires ffmpeg and a video file input
+- Only add `--keep-temp` when the user may re-process the same URL to avoid re-downloading
+- Only add `--output-template` when user specifies a custom naming pattern in batch mode
+- **Multi-format output** (`--format srt,text`): only when user explicitly wants multiple formats in one pass; always pair with `-o <dir>`
 - Any word-level feature auto-runs wav2vec2 alignment (~5-10s overhead)
 - `--diarize` adds ~20-30s on top of that
 
@@ -100,9 +120,15 @@ Use this skill when you need to:
 **Output format for agent relay:**
 - **Search results** (`--search`) → print directly to user; output is human-readable
 - **Chapter output** → if no `--chapters-file`, chapters appear in stdout under `=== CHAPTERS (N) ===` header after the transcript
-- **Subtitle/CSV/HTML/TTML formats** → always write to `-o` file; tell the user the output path, don't paste raw XML/CSV
+- **Subtitle formats** (SRT, VTT, ASS, LRC, TTML) → always write to `-o` file; tell the user the output path, never paste raw subtitle content
+- **Data formats** (CSV, HTML, TTML, JSON) → always write to `-o` file; tell the user the output path, don't paste raw XML/CSV/HTML
+- **ASS format** → for Aegisub, VLC, mpv; write to file and tell user they can open it in Aegisub or play it in VLC/mpv
+- **LRC format** → timed lyrics for music players (Foobar2000, AIMP, VLC); write to file
+- **Multi-format** (`--format srt,text`) → requires `-o <dir>`; each format goes to a separate file; tell user all paths written
 - **JSON format** → useful for programmatic post-processing; not ideal to paste in full to user
 - **Text/transcript** → safe to show directly to user for short files; summarise for long ones
+- **Stats output** (`--stats-file`) → summarise key fields (duration, processing time, RTF) for the user rather than pasting raw JSON
+- **Language detection** (`--detect-language-only`) → print the result directly; it's a single line
 - **ETA** is printed automatically to stderr for batch jobs; no action needed
 
 **When NOT to use:**
@@ -188,6 +214,13 @@ This skill covers everything whisperx does — diarization (`--diarize`), word-l
 | **Chapters to file** | `./scripts/transcribe audio.mp3 --detect-chapters --chapters-file ch.txt` | Save YouTube-format chapter list |
 | **Chapters JSON** | `./scripts/transcribe audio.mp3 --detect-chapters --chapter-format json` | Machine-readable chapter list |
 | **Export speaker audio** | `./scripts/transcribe audio.mp3 --diarize --export-speakers ./speakers/` | Save each speaker's audio to separate WAV files |
+| **Multi-format output** | `./scripts/transcribe audio.mp3 --format srt,text -o ./out/` | Write SRT + TXT in one pass |
+| **Remove filler words** | `./scripts/transcribe audio.mp3 --clean-filler` | Strip um/uh/er/ah/hmm and discourse markers |
+| **Left channel only** | `./scripts/transcribe audio.mp3 --channel left` | Extract left stereo channel before transcribing |
+| **Right channel only** | `./scripts/transcribe audio.mp3 --channel right` | Extract right stereo channel |
+| **Max chars per line** | `./scripts/transcribe audio.mp3 --format srt --max-chars-per-line 42` | Character-based subtitle wrapping |
+| **Detect paragraphs** | `./scripts/transcribe audio.mp3 --detect-paragraphs` | Insert paragraph breaks in text output |
+| **Paragraph gap tuning** | `./scripts/transcribe audio.mp3 --detect-paragraphs --paragraph-gap 5.0` | Tune gap threshold (default 3.0s) |
 
 ## Model Selection
 
@@ -389,10 +422,24 @@ Model & Language:
   --model-dir PATH      Custom model cache directory (default: ~/.cache/huggingface/)
 
 Output Format:
-  -f, --format FMT      text | json | srt | vtt | tsv | lrc | html | ass (default: text)
+  -f, --format FMT      text | json | srt | vtt | tsv | lrc | html | ass | ttml (default: text)
+                        Accepts comma-separated list: --format srt,text writes both in one pass
+                        Multi-format requires -o <dir> when saving to files
   --word-timestamps     Include word-level timestamps (wav2vec2 aligned automatically)
   --stream              Output segments as they are transcribed (disables diarize/alignment)
   --max-words-per-line N  For SRT/VTT, split segments into sub-cues of at most N words
+  --max-chars-per-line N  For SRT/VTT/ASS/TTML, split lines so each fits within N characters
+                        Takes priority over --max-words-per-line when both are set
+  --clean-filler        Remove hesitation fillers (um, uh, er, ah, hmm, hm) and discourse markers
+                        (you know, I mean, you see) from transcript text. Off by default.
+  --detect-paragraphs   Insert paragraph breaks (blank lines) in text output at natural boundaries.
+                        A new paragraph starts when: silence gap ≥ --paragraph-gap, OR the previous
+                        segment ends a sentence AND the gap ≥ 1.5s.
+  --paragraph-gap SEC   Minimum silence gap in seconds to start a new paragraph (default: 3.0).
+                        Used with --detect-paragraphs.
+  --channel {left,right,mix}
+                        Stereo channel to transcribe: left (c0), right (c1), or mix (default: mix).
+                        Extracts the channel via ffmpeg before transcription. Requires ffmpeg.
   --merge-sentences     Merge consecutive segments into sentence-level chunks
                         (improves SRT/VTT readability; groups by terminal punctuation or >2s gap)
   -o, --output PATH     Output file or directory (directory for batch mode)
@@ -889,6 +936,32 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - **Subtitle burn-in**: `--burn-in` overlays subtitles directly into video via ffmpeg
 
 ### v1.5.0 New Features
+**Multi-format output:**
+- `--format srt,text` — write multiple formats in one pass (e.g. SRT + plain text simultaneously)
+- Comma-separated list accepted: `srt,vtt,json`, `srt,text`, etc.
+- Requires `-o <dir>` when writing multiple formats; single format unchanged
+
+**Filler word removal:**
+- `--clean-filler` — strip hesitation sounds (um, uh, er, ah, hmm, hm) and discourse markers
+  (you know, I mean, you see) from transcript text; off by default
+- Conservative regex matching at word boundaries to avoid false positives
+- Segments that become empty after cleaning are dropped automatically
+
+**Stereo channel selection:**
+- `--channel left|right|mix` — extract a specific stereo channel before transcribing (default: mix)
+- Useful for dual-track recordings (interviewer on left, interviewee on right)
+- Uses ffmpeg pan filter; falls back gracefully to full mix if ffmpeg not found
+
+**Character-based subtitle wrapping:**
+- `--max-chars-per-line N` — split subtitle cues so each line fits within N characters
+- Works for SRT, VTT, ASS, and TTML formats; takes priority over `--max-words-per-line`
+- Requires word-level timestamps; falls back to full segment if no word data
+
+**Paragraph detection:**
+- `--detect-paragraphs` — insert `\n\n` paragraph breaks in text output at natural boundaries
+- `--paragraph-gap SEC` — minimum silence gap for a paragraph (default: 3.0s)
+- Also detects paragraph breaks when the previous segment ends a sentence and gap ≥ 1.5s
+
 **Subtitle formats:**
 - `--format ass` — Advanced SubStation Alpha (Aegisub, VLC, mpv, MPC-HC)
 - `--format lrc` — Timed lyrics format for music players

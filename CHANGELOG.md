@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-02-18
+
+**Bug fixes:**
+- Fixed multi-format output (`--format srt,text`) not creating a directory in single-file mode — both formats were being written to the same file path
+
+**Agent guidance improvements:**
+- Added explicit "only add when" rules for all new v1.5.0 features: `--clean-filler`, `--channel`, `--max-chars-per-line`, `--detect-paragraphs`, `--speaker-names`, `--hotwords`, `--prefix`, `--detect-language-only`, `--stats-file`, `--parallel`, `--retries`, `--burn-in`, `--keep-temp`, `--output-template`, multi-format output
+- Updated output format relay guidance to explicitly cover ASS, LRC, multi-format, stats, and language detection outputs
+
 ## [1.5.0] - 2026-02-18
 
 **Subtitle formats:**

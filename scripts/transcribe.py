@@ -94,7 +94,7 @@ def is_url(path):
 # Output formatters
 # ---------------------------------------------------------------------------
 
-def to_srt(segments, max_words_per_line=None):
+def to_srt(segments, max_words_per_line=None, max_chars_per_line=None):
     """Format segments as SRT subtitle content."""
     lines = []
     cue_num = 1
@@ -102,7 +102,18 @@ def to_srt(segments, max_words_per_line=None):
         text = seg["text"].strip()
         if seg.get("speaker"):
             text = f"[{seg['speaker']}] {text}"
-        if max_words_per_line and seg.get("words"):
+        if max_chars_per_line and seg.get("words"):
+            words = seg["words"]
+            for chunk in split_words_by_chars(words, max_chars_per_line):
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                lines.append(str(cue_num))
+                lines.append(f"{format_ts_srt(chunk[0]['start'])} --> {format_ts_srt(chunk[-1]['end'])}")
+                lines.append(chunk_text)
+                lines.append("")
+                cue_num += 1
+        elif max_words_per_line and seg.get("words"):
             words = seg["words"]
             for i in range(0, len(words), max_words_per_line):
                 chunk = words[i:i + max_words_per_line]
@@ -123,7 +134,7 @@ def to_srt(segments, max_words_per_line=None):
     return "\n".join(lines)
 
 
-def to_vtt(segments, max_words_per_line=None):
+def to_vtt(segments, max_words_per_line=None, max_chars_per_line=None):
     """Format segments as WebVTT subtitle content."""
     lines = ["WEBVTT", ""]
     cue_num = 1
@@ -131,7 +142,18 @@ def to_vtt(segments, max_words_per_line=None):
         text = seg["text"].strip()
         if seg.get("speaker"):
             text = f"[{seg['speaker']}] {text}"
-        if max_words_per_line and seg.get("words"):
+        if max_chars_per_line and seg.get("words"):
+            words = seg["words"]
+            for chunk in split_words_by_chars(words, max_chars_per_line):
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                lines.append(str(cue_num))
+                lines.append(f"{format_ts_vtt(chunk[0]['start'])} --> {format_ts_vtt(chunk[-1]['end'])}")
+                lines.append(chunk_text)
+                lines.append("")
+                cue_num += 1
+        elif max_words_per_line and seg.get("words"):
             words = seg["words"]
             for i in range(0, len(words), max_words_per_line):
                 chunk = words[i:i + max_words_per_line]
@@ -153,15 +175,29 @@ def to_vtt(segments, max_words_per_line=None):
 
 
 def to_text(segments):
-    """Format segments as plain text, with speaker labels if present."""
+    """Format segments as plain text, with speaker labels if present.
+
+    Inserts paragraph breaks between segments marked with 'paragraph_start'.
+    """
     has_speakers = any(seg.get("speaker") for seg in segments)
+    has_paragraphs = any(seg.get("paragraph_start") for seg in segments)
+
     if not has_speakers:
-        return "".join(seg["text"] for seg in segments).strip()
+        if not has_paragraphs:
+            return "".join(seg["text"] for seg in segments).strip()
+        parts = []
+        for seg in segments:
+            if seg.get("paragraph_start") and parts:
+                parts.append("\n\n")
+            parts.append(seg["text"])
+        return "".join(parts).strip()
 
     lines = []
     current_speaker = None
     for seg in segments:
         sp = seg.get("speaker")
+        if has_paragraphs and seg.get("paragraph_start") and lines:
+            lines.append("\n")
         if sp and sp != current_speaker:
             current_speaker = sp
             lines.append(f"\n[{sp}]")
@@ -215,7 +251,7 @@ def format_ts_ass(seconds):
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
-def to_ass(segments, max_words_per_line=None):
+def to_ass(segments, max_words_per_line=None, max_chars_per_line=None):
     """Format segments as ASS/SSA (Advanced SubStation Alpha) subtitle content.
 
     Produces a standard v4.00+ ASS file with default styling. Compatible with
@@ -248,7 +284,17 @@ def to_ass(segments, max_words_per_line=None):
         if seg.get("speaker"):
             text = f"[{seg['speaker']}] {text}"
 
-        if max_words_per_line and seg.get("words"):
+        if max_chars_per_line and seg.get("words"):
+            words = seg["words"]
+            for chunk in split_words_by_chars(words, max_chars_per_line):
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                lines.append(
+                    f"Dialogue: 0,{format_ts_ass(chunk[0]['start'])},"
+                    f"{format_ts_ass(chunk[-1]['end'])},Default,,0,0,0,,{chunk_text}"
+                )
+        elif max_words_per_line and seg.get("words"):
             words = seg["words"]
             for i in range(0, len(words), max_words_per_line):
                 chunk = words[i:i + max_words_per_line]
@@ -302,7 +348,7 @@ def format_ts_ttml(seconds):
     return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
 
 
-def to_ttml(segments, language="en", max_words_per_line=None):
+def to_ttml(segments, language="en", max_words_per_line=None, max_chars_per_line=None):
     """Format segments as TTML (Timed Text Markup Language / DFXP) subtitles.
 
     Produces a W3C TTML 1.0 file compatible with broadcast platforms,
@@ -348,7 +394,18 @@ def to_ttml(segments, language="en", max_words_per_line=None):
     ]
 
     for seg in segments:
-        if max_words_per_line and seg.get("words"):
+        if max_chars_per_line and seg.get("words"):
+            words = seg["words"]
+            for chunk in split_words_by_chars(words, max_chars_per_line):
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                begin = format_ts_ttml(chunk[0]["start"])
+                end = format_ts_ttml(chunk[-1]["end"])
+                lines.append(
+                    f'      <p begin="{begin}" end="{end}" style="s1">{xml_escape(chunk_text)}</p>'
+                )
+        elif max_words_per_line and seg.get("words"):
             words = seg["words"]
             for i in range(0, len(words), max_words_per_line):
                 chunk = words[i:i + max_words_per_line]
@@ -491,6 +548,141 @@ def filter_hallucinations(segments):
         prev_text = text
         filtered.append(seg)
     return filtered
+
+
+# ---------------------------------------------------------------------------
+# Channel extraction
+# ---------------------------------------------------------------------------
+
+def extract_channel(audio_path, channel, quiet=False):
+    """Extract a stereo channel from audio using ffmpeg.
+
+    channel: 'left' (c0), 'right' (c1), or 'mix' (no-op, returns original).
+    Returns (output_path, tmp_path_to_cleanup_or_None).
+    """
+    if channel == "mix":
+        return audio_path, None
+
+    if not shutil.which("ffmpeg"):
+        if not quiet:
+            print("⚠️  ffmpeg not found — cannot extract channel; using full mix", file=sys.stderr)
+        return audio_path, None
+
+    pan = "c0" if channel == "left" else "c1"
+    tmp_path = audio_path + f".{channel}.wav"
+    cmd = [
+        "ffmpeg", "-y", "-i", audio_path,
+        "-af", f"pan=mono|c0={pan}",
+        "-ar", "16000",
+        tmp_path,
+    ]
+    if not quiet:
+        print(f"🎚️  Extracting {channel} channel...", file=sys.stderr)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return tmp_path, tmp_path
+    except subprocess.CalledProcessError:
+        if not quiet:
+            print("⚠️  Channel extraction failed; using full mix", file=sys.stderr)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        return audio_path, None
+
+
+# ---------------------------------------------------------------------------
+# Filler word removal
+# ---------------------------------------------------------------------------
+
+_FILLER_PATTERNS = [
+    # Single-word hesitation sounds (word boundary match)
+    re.compile(r'\b(um+|uh+|er+|ah+|hmm+|hm+)\b', re.I),
+    # Discourse markers (case-insensitive, word boundaries)
+    re.compile(r'\byou know\b', re.I),
+    re.compile(r'\bI mean\b', re.I),
+    re.compile(r'\byou see\b', re.I),
+]
+
+
+def remove_filler_words(segments):
+    """Strip hesitation fillers and discourse markers from segment text.
+
+    Only modifies segment['text'] — not the word list (too complex for
+    multi-word phrases).  Drops segments that become empty after cleaning.
+    """
+    cleaned = []
+    for seg in segments:
+        text = seg["text"]
+        for pat in _FILLER_PATTERNS:
+            text = pat.sub("", text)
+        # Fix up punctuation spacing: remove spaces before punctuation
+        text = re.sub(r'\s+([,.!?;:])', r'\1', text)
+        # Collapse multiple spaces
+        text = re.sub(r'  +', ' ', text)
+        text = text.strip()
+        if not text:
+            continue
+        seg = dict(seg)  # shallow copy to avoid mutating original
+        seg["text"] = text
+        cleaned.append(seg)
+    return cleaned
+
+
+# ---------------------------------------------------------------------------
+# Paragraph detection
+# ---------------------------------------------------------------------------
+
+def detect_paragraphs(segments, min_gap=3.0, sentence_gap=1.5):
+    """Mark segment dicts with 'paragraph_start': True at paragraph boundaries.
+
+    A new paragraph starts when:
+    - The gap to the previous segment >= min_gap seconds, OR
+    - The previous segment ends a sentence (terminal punct) AND
+      the gap >= sentence_gap seconds.
+    The first segment always gets paragraph_start = True.
+    Uses _TERMINAL_PUNCT defined in the merge_sentences section below.
+    """
+    if not segments:
+        return segments
+    segments[0]["paragraph_start"] = True
+    for i in range(1, len(segments)):
+        prev = segments[i - 1]
+        curr = segments[i]
+        gap = curr["start"] - prev["end"]
+        prev_text = prev.get("text", "").rstrip()
+        ends_sentence = bool(_TERMINAL_PUNCT.search(prev_text))
+        if gap >= min_gap or (ends_sentence and gap >= sentence_gap):
+            curr["paragraph_start"] = True
+    return segments
+
+
+# ---------------------------------------------------------------------------
+# Character-based subtitle line splitting
+# ---------------------------------------------------------------------------
+
+def split_words_by_chars(words, max_chars):
+    """Split a list of word dicts into chunks where each chunk's joined text
+    fits within max_chars characters.
+
+    Returns a list of word lists (chunks).
+    """
+    if not words:
+        return [words]
+    chunks = []
+    current = []
+    current_len = 0
+    for w in words:
+        word_text = w["word"]
+        candidate_len = current_len + len(word_text)
+        if current and candidate_len > max_chars:
+            chunks.append(current)
+            current = [w]
+            current_len = len(word_text)
+        else:
+            current.append(w)
+            current_len = candidate_len
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 # ---------------------------------------------------------------------------
@@ -1345,7 +1537,16 @@ def transcribe_file(audio_path, pipeline, args):
 
     # --- Preprocessing (normalize / denoise) ---
     preprocess_tmp = None
+    channel_tmp = None
     effective_path = str(audio_path)
+
+    # --- Channel extraction (stereo → mono channel) ---
+    channel = getattr(args, "channel", "mix")
+    if channel != "mix":
+        effective_path, channel_tmp = extract_channel(
+            effective_path, channel, quiet=args.quiet
+        )
+
     if args.normalize or args.denoise:
         effective_path, preprocess_tmp = preprocess_audio(
             effective_path, normalize=args.normalize, denoise=args.denoise,
@@ -1541,9 +1742,11 @@ def transcribe_file(audio_path, pipeline, args):
     if getattr(args, "filter_hallucinations", False):
         segments = filter_hallucinations(segments)
 
-    # Cleanup preprocessing temp file
+    # Cleanup preprocessing and channel extraction temp files
     if preprocess_tmp and os.path.exists(preprocess_tmp):
         os.remove(preprocess_tmp)
+    if channel_tmp and os.path.exists(channel_tmp):
+        os.remove(channel_tmp)
 
     elapsed = time.time() - t0
     dur = info.duration
@@ -1588,14 +1791,16 @@ EXT_MAP = {
 }
 
 
-def format_result(result, fmt, max_words_per_line=None):
+def format_result(result, fmt, max_words_per_line=None, max_chars_per_line=None):
     """Render a result dict in the requested format."""
     if fmt == "json":
         return json.dumps(result, indent=2, ensure_ascii=False)
     if fmt == "srt":
-        return to_srt(result["segments"], max_words_per_line=max_words_per_line)
+        return to_srt(result["segments"], max_words_per_line=max_words_per_line,
+                      max_chars_per_line=max_chars_per_line)
     if fmt == "vtt":
-        return to_vtt(result["segments"], max_words_per_line=max_words_per_line)
+        return to_vtt(result["segments"], max_words_per_line=max_words_per_line,
+                      max_chars_per_line=max_chars_per_line)
     if fmt == "tsv":
         return to_tsv(result["segments"])
     if fmt == "csv":
@@ -1605,12 +1810,14 @@ def format_result(result, fmt, max_words_per_line=None):
     if fmt == "html":
         return to_html(result)
     if fmt == "ass":
-        return to_ass(result["segments"], max_words_per_line=max_words_per_line)
+        return to_ass(result["segments"], max_words_per_line=max_words_per_line,
+                      max_chars_per_line=max_chars_per_line)
     if fmt == "ttml":
         return to_ttml(
             result["segments"],
             language=result.get("language", "en"),
             max_words_per_line=max_words_per_line,
+            max_chars_per_line=max_chars_per_line,
         )
     return to_text(result["segments"])
 
@@ -1724,8 +1931,10 @@ def main():
     # --- Output format ---
     p.add_argument(
         "-f", "--format", default="text",
-        choices=["text", "json", "srt", "vtt", "tsv", "csv", "lrc", "html", "ass", "ttml"],
-        help="Output format (default: text)",
+        help="Output format (default: text). "
+             "Accepts one or a comma-separated list of: "
+             "text, json, srt, vtt, tsv, csv, lrc, html, ass, ttml. "
+             "Example: --format srt,text",
     )
     p.add_argument(
         "--word-timestamps", action="store_true",
@@ -1739,6 +1948,30 @@ def main():
         "--max-words-per-line", type=int, default=None, metavar="N",
         help="For SRT/VTT, split long segments into sub-cues with at most N words each "
              "(requires word-level timestamps; falls back to full segment if no word data)",
+    )
+    p.add_argument(
+        "--max-chars-per-line", type=int, default=None, metavar="N",
+        help="For SRT/VTT/ASS/TTML, split subtitle lines so each fits within N characters "
+             "(requires word-level timestamps; takes priority over --max-words-per-line)",
+    )
+    p.add_argument(
+        "--channel", default="mix", choices=["left", "right", "mix"],
+        help="Stereo channel to transcribe: left, right, or mix (default: mix). "
+             "Requires ffmpeg.",
+    )
+    p.add_argument(
+        "--clean-filler", action="store_true",
+        help="Remove hesitation fillers (um, uh, er, ah, hmm) and discourse markers "
+             "(you know, I mean, you see) from transcript text",
+    )
+    p.add_argument(
+        "--detect-paragraphs", action="store_true",
+        help="Insert paragraph breaks in text output based on silence gaps between segments",
+    )
+    p.add_argument(
+        "--paragraph-gap", type=float, default=3.0, metavar="SEC",
+        help="Minimum silence gap in seconds to start a new paragraph (default: 3.0). "
+             "Used with --detect-paragraphs",
     )
     p.add_argument(
         "--merge-sentences", action="store_true",
@@ -2084,6 +2317,25 @@ def main():
         args.format = "json"
     if args.precise:
         args.word_timestamps = True
+
+    # Parse --format as comma-separated list; validate each entry
+    _VALID_FORMATS = {"text", "json", "srt", "vtt", "tsv", "csv", "lrc", "html", "ass", "ttml"}
+    _raw_formats = [f.strip() for f in args.format.split(",") if f.strip()]
+    _invalid = [f for f in _raw_formats if f not in _VALID_FORMATS]
+    if _invalid:
+        p.error(
+            f"Invalid format(s): {', '.join(_invalid)}. "
+            f"Choose from: {', '.join(sorted(_VALID_FORMATS))}"
+        )
+    args._formats = _raw_formats if _raw_formats else ["text"]
+    args.format = args._formats[0]  # backward compat
+
+    # Multi-format + file path (not dir) is an error
+    if len(args._formats) > 1 and args.output and Path(args.output).suffix:
+        p.error(
+            f"Multiple formats ({', '.join(args._formats)}) require -o to be a directory, "
+            f"not a file path. Use: -o /path/to/output/dir/"
+        )
 
     # Validate: need at least one audio source
     if not args.audio and not args.rss:
@@ -2433,6 +2685,24 @@ def main():
             _write_stats(r, args)
             continue
 
+        # ---- Apply paragraph detection ----
+        if getattr(args, "detect_paragraphs", False) and r.get("segments"):
+            r["segments"] = detect_paragraphs(
+                r["segments"],
+                min_gap=getattr(args, "paragraph_gap", 3.0),
+            )
+
+        # ---- Apply filler word removal ----
+        if getattr(args, "clean_filler", False) and r.get("segments"):
+            r["segments"] = remove_filler_words(r["segments"])
+            r["text"] = " ".join(s["text"].strip() for s in r["segments"]).strip()
+
+        # Determine output filename stem for template/stats
+        audio_path = r.get("_audio_path", r["file"])
+        stem = Path(audio_path).stem
+        lang = r.get("language", "xx")
+        model_name = args.model
+
         # ---- Transcript search mode ----
         if getattr(args, "search", None):
             matches = search_transcript(
@@ -2440,38 +2710,64 @@ def main():
                 args.search,
                 fuzzy=getattr(args, "search_fuzzy", False),
             )
-            output = format_search_results(matches, args.search)
-        else:
-            output = format_result(r, args.format, max_words_per_line=args.max_words_per_line)
-
-        # Determine output filename stem for template/stats
-        audio_path = r.get("_audio_path", r["file"])
-        stem = Path(audio_path).stem
-        ext = EXT_MAP.get(args.format, ".txt").lstrip(".")
-        lang = r.get("language", "xx")
-        model_name = args.model
-
-        if args.output:
-            out_path = Path(args.output)
-            if out_path.is_dir() or (is_batch and not out_path.suffix):
-                out_path.mkdir(parents=True, exist_ok=True)
-                # Apply output template if provided
-                if args.output_template:
-                    filename = args.output_template.format(
-                        stem=stem, lang=lang, ext=ext, model=model_name,
-                    )
-                    dest = out_path / filename
+            search_output = format_search_results(matches, args.search)
+            if args.output:
+                out_path = Path(args.output)
+                if out_path.is_dir() or (is_batch and not out_path.suffix):
+                    out_path.mkdir(parents=True, exist_ok=True)
+                    dest = out_path / (stem + ".txt")
                 else:
-                    dest = out_path / (stem + EXT_MAP.get(args.format, ".txt"))
+                    dest = out_path
+                dest.write_text(search_output, encoding="utf-8")
+                if not args.quiet:
+                    print(f"💾 {dest}", file=sys.stderr)
             else:
-                dest = out_path
-            dest.write_text(output, encoding="utf-8")
-            if not args.quiet:
-                print(f"💾 {dest}", file=sys.stderr)
+                if is_batch:
+                    print(f"\n=== {r['file']} ===")
+                print(search_output)
         else:
-            if is_batch and args.format == "text":
-                print(f"\n=== {r['file']} ===")
-            print(output)
+            # ---- Multi-format output loop ----
+            formats = getattr(args, "_formats", [args.format])
+            if len(formats) > 1 and not args.output:
+                print(
+                    f"⚠️  Multiple formats requested but no -o DIR specified; "
+                    f"showing only '{formats[0]}' on stdout. "
+                    f"Use -o <dir> to write all formats.",
+                    file=sys.stderr,
+                )
+            for fmt_idx, fmt in enumerate(formats):
+                ext = EXT_MAP.get(fmt, ".txt").lstrip(".")
+                output = format_result(
+                    r, fmt,
+                    max_words_per_line=args.max_words_per_line,
+                    max_chars_per_line=getattr(args, "max_chars_per_line", None),
+                )
+
+                if args.output:
+                    out_path = Path(args.output)
+                    # Treat as directory when: it's already a dir, OR batch mode, OR multiple formats requested
+                    multi_fmt = len(formats) > 1
+                    if out_path.is_dir() or (is_batch and not out_path.suffix) or (multi_fmt and not out_path.suffix):
+                        out_path.mkdir(parents=True, exist_ok=True)
+                        # Apply output template if provided
+                        if args.output_template:
+                            filename = args.output_template.format(
+                                stem=stem, lang=lang, ext=ext, model=model_name,
+                            )
+                            dest = out_path / filename
+                        else:
+                            dest = out_path / (stem + EXT_MAP.get(fmt, ".txt"))
+                    else:
+                        dest = out_path
+                    dest.write_text(output, encoding="utf-8")
+                    if not args.quiet:
+                        print(f"💾 {dest}", file=sys.stderr)
+                else:
+                    # Only print first format to stdout
+                    if fmt_idx == 0:
+                        if is_batch and fmt == "text":
+                            print(f"\n=== {r['file']} ===")
+                        print(output)
 
         # ---- Chapter detection ----
         if getattr(args, "detect_chapters", False) and r.get("segments"):
