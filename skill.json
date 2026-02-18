@@ -1,6 +1,6 @@
 {
   "name": "faster-whisper",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Local speech-to-text using faster-whisper with 4-6x speed boost over OpenAI Whisper. GPU acceleration enables ~20x realtime transcription.",
   "author": "ThePlasmak",
   "tags": [

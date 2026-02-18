@@ -1702,15 +1702,16 @@ def transcribe_file(audio_path, pipeline, args):
 
     # --- Advanced inference params (Part 1 new flags) ---
     if args.no_timestamps:
+        _ts_formats = {"srt", "vtt", "tsv", "lrc", "ass", "ttml"}
         conflicts = (
             args.word_timestamps
-            or args.format in ("srt", "vtt", "tsv")
+            or any(f in _ts_formats for f in getattr(args, "_formats", [args.format]))
             or args.diarize
         )
         if conflicts:
             print(
                 "⚠️  --no-timestamps ignored: incompatible with "
-                "--word-timestamps / --format srt/vtt/tsv / --diarize",
+                "--word-timestamps / --format srt/vtt/tsv/lrc/ass/ttml / --diarize",
                 file=sys.stderr,
             )
         else:
@@ -2455,6 +2456,10 @@ def main():
                 file=sys.stderr,
             )
 
+    # Warn when --speaker-names is used without --diarize (has no effect)
+    if getattr(args, "speaker_names", None) and not args.diarize:
+        print("⚠️  --speaker-names has no effect without --diarize; ignoring", file=sys.stderr)
+
     # Streaming mode disables post-processing that needs all segments
     if args.stream:
         if args.diarize:
@@ -2605,14 +2610,22 @@ def main():
     total_audio = 0
     wall_start = time.time()
 
+    _skip_count = [0]  # mutable counter for batch summary
+
     def _should_skip(audio_path):
         if args.skip_existing and args.output:
             out_dir = Path(args.output)
             if out_dir.is_dir():
-                target = out_dir / (Path(audio_path).stem + EXT_MAP.get(args.format, ".txt"))
-                if target.exists():
+                formats = getattr(args, "_formats", [args.format])
+                # Skip only when ALL requested format outputs already exist
+                all_exist = all(
+                    (out_dir / (Path(audio_path).stem + EXT_MAP.get(fmt, ".txt"))).exists()
+                    for fmt in formats
+                )
+                if all_exist:
                     if not args.quiet:
                         print(f"⏭️  Skip (exists): {Path(audio_path).name}", file=sys.stderr)
+                    _skip_count[0] += 1
                     return True
         return False
 
@@ -2909,8 +2922,9 @@ def main():
     if is_batch and not args.quiet:
         wall = time.time() - wall_start
         rt = total_audio / wall if wall > 0 else 0
+        skip_note = f" ({_skip_count[0]} skipped)" if _skip_count[0] else ""
         print(
-            f"\n📊 Done: {len(results)} files, {format_duration(total_audio)} audio "
+            f"\n📊 Done: {len(results)} files{skip_note}, {format_duration(total_audio)} audio "
             f"in {format_duration(wall)} ({rt:.1f}× realtime)",
             file=sys.stderr,
         )

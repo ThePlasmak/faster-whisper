@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-02-18
+
+### Bug fixes
+
+- Fixed `--skip-existing` in multi-format mode (`--format srt,text`) — previously only checked for the first format's output file; now skips only when ALL requested format outputs already exist
+- Fixed `--no-timestamps` conflict check missing `lrc`, `ass`, and `ttml` formats — those formats all require timing info and are now correctly listed as incompatible
+- Fixed `--speaker-names` silently doing nothing when `--diarize` is not set — now prints a clear warning
+
+### UX improvements
+
+- Batch summary now shows skipped file count when `--skip-existing` is active: `📊 Done: 8 files (3 skipped), ...`
+
 ## [1.5.0] - 2026-02-18
 
 ### Bug fixes
