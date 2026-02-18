@@ -1,12 +1,12 @@
 ---
 name: faster-whisper
 description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT subtitles, speaker diarization, URL/YouTube input, batch processing."
-version: 1.3.0
+version: 1.6.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization"]
 platforms: ["linux", "macos", "wsl2"]
-metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"]}}}
+metadata: {"openclaw":{"emoji":"🗣️","requires":{"bins":["ffmpeg","python3"],"optionalBins":["yt-dlp"],"optionalPaths":["~/.cache/huggingface/token"]}}}
 ---
 
 # Faster Whisper
@@ -22,22 +22,35 @@ Use this skill when you need to:
 - **Transcribe from URLs** — YouTube links and direct audio URLs (auto-downloads via yt-dlp)
 - **Batch process files** — glob patterns, directories, skip-existing support
 - **Convert speech to text locally** — no API costs, works offline (after model download)
+- **Translate to English** — translate any language to English with `--translate`
 - **Multilingual transcription** — supports 99+ languages with auto-detection
+- **Code-switching audio** — `--multilingual` for mixed-language content
 - **Prime for domain terms** — use `--initial-prompt` for jargon-heavy content
+- **Preprocess noisy audio** — `--normalize` and `--denoise` before transcription
+- **Stream output** — `--stream` shows segments as they're transcribed
+- **Clip time ranges** — `--clip-timestamps` to transcribe specific sections
 
-**Trigger phrases:** "transcribe this audio", "convert speech to text", "what did they say", "make a transcript", "audio to text", "subtitle this video", "who's speaking"
+**Trigger phrases:** "transcribe this audio", "convert speech to text", "what did they say", "make a transcript", "audio to text", "subtitle this video", "who's speaking", "translate this audio", "translate to English"
 
 **⚠️ Agent guidance — keep invocations minimal:**
 - Default command (`./scripts/transcribe audio.mp3`) is the fastest path — don't add flags the user didn't ask for
 - Only add `--diarize` if the user asks "who said what" / "identify speakers"
-- Only add `--format srt/vtt` if the user asks for subtitles/captions
+- Only add `--format srt/vtt/tsv` if the user asks for subtitles/captions or TSV output
 - Only add `--word-timestamps` if the user needs word-level timing
 - Only add `--initial-prompt` if there's domain-specific jargon to prime
+- Only add `--translate` if the user wants non-English audio translated to English
+- Only add `--normalize`/`--denoise` if the user mentions bad audio quality or noise
+- Only add `--stream` if the user wants live/progressive output for long files
+- Only add `--clip-timestamps` if the user wants a specific time range
+- Only add `--temperature 0.0` if the model is hallucinating on music/silence
+- Only add `--vad-threshold` if VAD is aggressively cutting speech or including noise
+- Only add `--min-speakers`/`--max-speakers` when you know the speaker count
+- Only add `--hf-token` if the token is not cached at `~/.cache/huggingface/token`
+- Only add `--max-words-per-line` for subtitle readability on long segments
 - Any word-level feature auto-runs wav2vec2 alignment (~5-10s overhead)
 - `--diarize` adds ~20-30s on top of that
 
 **When NOT to use:**
-- Real-time/streaming transcription (use streaming-optimized tools instead)
 - Cloud-only environments without local compute
 - Files <10 seconds where API call latency doesn't matter
 
@@ -50,15 +63,38 @@ Use this skill when you need to:
 | **VTT subtitles** | `./scripts/transcribe audio.mp3 --format vtt -o subs.vtt` | WebVTT format |
 | **Word timestamps** | `./scripts/transcribe audio.mp3 --word-timestamps --format srt` | wav2vec2 aligned (~10ms) |
 | **Speaker diarization** | `./scripts/transcribe audio.mp3 --diarize` | Requires pyannote.audio |
+| **Translate → English** | `./scripts/transcribe audio.mp3 --translate` | Any language → English |
+| **Stream output** | `./scripts/transcribe audio.mp3 --stream` | Live segments as transcribed |
+| **Clip time range** | `./scripts/transcribe audio.mp3 --clip-timestamps "30,60"` | Only 30s–60s |
+| **Denoise + normalize** | `./scripts/transcribe audio.mp3 --denoise --normalize` | Clean up noisy audio first |
+| **Reduce hallucination** | `./scripts/transcribe audio.mp3 --hallucination-silence-threshold 1.0` | Skip hallucinated silence |
 | **YouTube/URL** | `./scripts/transcribe https://youtube.com/watch?v=...` | Auto-downloads via yt-dlp |
 | **Batch process** | `./scripts/transcribe *.mp3 -o ./transcripts/` | Output to directory |
 | **Batch with skip** | `./scripts/transcribe *.mp3 --skip-existing -o ./out/` | Resume interrupted batches |
 | **Domain terms** | `./scripts/transcribe audio.mp3 --initial-prompt 'Kubernetes gRPC'` | Boost rare terminology |
+| **Turbo model** | `./scripts/transcribe audio.mp3 -m turbo` | Alias for large-v3-turbo |
 | **Faster English** | `./scripts/transcribe audio.mp3 --model distil-medium.en -l en` | English-only, 6.8x faster |
 | **Maximum accuracy** | `./scripts/transcribe audio.mp3 --model large-v3 --beam-size 10` | Full model |
 | **JSON output** | `./scripts/transcribe audio.mp3 --format json -o out.json` | Programmatic access with stats |
 | **Filter noise** | `./scripts/transcribe audio.mp3 --min-confidence 0.6` | Drop low-confidence segments |
+| **Hybrid quantization** | `./scripts/transcribe audio.mp3 --compute-type int8_float16` | Save VRAM, minimal quality loss |
 | **Reduce batch size** | `./scripts/transcribe audio.mp3 --batch-size 4` | If OOM on GPU |
+| **TSV output** | `./scripts/transcribe audio.mp3 --format tsv -o out.tsv` | OpenAI Whisper–compatible TSV |
+| **Fix hallucinations** | `./scripts/transcribe audio.mp3 --temperature 0.0 --no-speech-threshold 0.8` | Lock temperature + skip silence |
+| **Tune VAD sensitivity** | `./scripts/transcribe audio.mp3 --vad-threshold 0.6 --min-silence-duration 500` | Tighter speech detection |
+| **Known speaker count** | `./scripts/transcribe meeting.wav --diarize --min-speakers 2 --max-speakers 3` | Constrain diarization |
+| **Subtitle word wrapping** | `./scripts/transcribe audio.mp3 --format srt --word-timestamps --max-words-per-line 8` | Split long cues |
+| **Private/gated model** | `./scripts/transcribe audio.mp3 --hf-token hf_xxx` | Pass token directly |
+| **Show version** | `./scripts/transcribe --version` | Print faster-whisper version |
+| **Upgrade in-place** | `./setup.sh --update` | Upgrade without full reinstall |
+| **Detect language only** | `./scripts/transcribe audio.mp3 --detect-language-only` | Fast language ID, no transcription |
+| **Detect language JSON** | `./scripts/transcribe audio.mp3 --detect-language-only --format json` | Machine-readable language detection |
+| **LRC subtitles** | `./scripts/transcribe audio.mp3 --format lrc -o lyrics.lrc` | Timed lyrics format for music players |
+| **Merge sentences** | `./scripts/transcribe audio.mp3 --format srt --merge-sentences` | Join fragments into sentence chunks |
+| **Stats sidecar** | `./scripts/transcribe audio.mp3 --stats-file stats.json` | Write perf stats JSON after transcription |
+| **Batch stats** | `./scripts/transcribe *.mp3 --stats-file ./stats/` | One stats file per input in dir |
+| **Template naming** | `./scripts/transcribe audio.mp3 -o ./out/ --output-template "{stem}_{lang}.{ext}"` | Custom batch output filenames |
+| **Stdin input** | `ffmpeg -i input.mp4 -f wav - \| ./scripts/transcribe -` | Pipe audio directly from stdin |
 
 ## Model Selection
 
@@ -212,31 +248,108 @@ Input:
                         URLs auto-download via yt-dlp (YouTube, direct links, etc.)
 
 Model & Language:
-  -m, --model NAME      Whisper model (default: distil-large-v3.5)
+  -m, --model NAME      Whisper model (default: distil-large-v3.5; "turbo" = large-v3-turbo)
+  --revision REV        Model revision (git branch/tag/commit) to pin a specific version
   -l, --language CODE   Language code, e.g. en, es, fr (auto-detects if omitted)
   --initial-prompt TEXT  Prompt to condition the model (terminology, formatting style)
+  --prefix TEXT         Prefix to condition the first segment (e.g. known starting words)
   --hotwords WORDS      Space-separated hotwords to boost recognition
+  --translate           Translate any language to English (instead of transcribing)
+  --multilingual        Enable multilingual/code-switching mode (helps smaller models)
+  --hf-token TOKEN      HuggingFace token for private/gated models and diarization
 
 Output Format:
-  -f, --format FMT      text | json | srt | vtt (default: text)
+  -f, --format FMT      text | json | srt | vtt | tsv | lrc (default: text)
   --word-timestamps     Include word-level timestamps (wav2vec2 aligned automatically)
+  --stream              Output segments as they are transcribed (disables diarize/alignment)
+  --max-words-per-line N  For SRT/VTT, split segments into sub-cues of at most N words
+  --merge-sentences     Merge consecutive segments into sentence-level chunks
+                        (improves SRT/VTT readability; groups by terminal punctuation or >2s gap)
   -o, --output PATH     Output file or directory (directory for batch mode)
+  --output-template TEMPLATE
+                        Batch output filename template. Variables: {stem}, {lang}, {ext}, {model}
+                        Example: "{stem}_{lang}.{ext}" → "interview_en.srt"
 
 Inference Tuning:
   --beam-size N         Beam search size; higher = more accurate but slower (default: 5)
+  --temperature T       Sampling temperature or comma-separated fallback list, e.g.
+                        '0.0' or '0.0,0.2,0.4' (default: faster-whisper's schedule)
+  --no-speech-threshold PROB
+                        Probability threshold to mark segments as silence (default: 0.6)
   --batch-size N        Batched inference batch size (default: 8; reduce if OOM)
   --no-vad              Disable voice activity detection (on by default)
+  --vad-threshold T     VAD speech probability threshold (default: 0.5)
+  --vad-neg-threshold T VAD negative threshold for ending speech (default: auto)
+  --vad-onset T         Alias for --vad-threshold (legacy)
+  --vad-offset T        Alias for --vad-neg-threshold (legacy)
+  --min-speech-duration MS  Minimum speech segment duration in ms (default: 0)
+  --max-speech-duration SEC Maximum speech segment duration in seconds (default: unlimited)
+  --min-silence-duration MS Minimum silence before splitting a segment in ms (default: 2000)
+  --speech-pad MS       Padding around speech segments in ms (default: 400)
   --no-batch            Disable batched inference (use standard WhisperModel)
+  --hallucination-silence-threshold SEC
+                        Skip silent sections where model hallucinates (e.g. 1.0)
+  --no-condition-on-previous-text
+                        Don't condition on previous text (reduces repetition loops)
+  --compression-ratio-threshold RATIO
+                        Filter segments above this compression ratio (default: 2.4)
+  --log-prob-threshold PROB
+                        Filter segments below this avg log probability (default: -1.0)
+  --max-new-tokens N    Maximum tokens per segment (prevents runaway generation)
+  --clip-timestamps RANGE
+                        Transcribe specific time ranges: '30,60' or '0,30;60,90' (seconds)
+  --progress            Show transcription progress bar
+  --best-of N           Candidates when sampling with non-zero temperature (default: 5)
+  --patience F          Beam search patience factor (default: 1.0)
+  --repetition-penalty F  Penalty for repeated tokens (default: 1.0)
+  --no-repeat-ngram-size N  Prevent n-gram repetitions of this size (default: 0 = off)
+
+Advanced Inference:
+  --without-timestamps  Output text without timing info (faster; incompatible with
+                        --word-timestamps, --format srt/vtt/tsv, --diarize)
+  --chunk-length N      Audio chunk length in seconds for batched inference (default: auto)
+  --language-detection-threshold T
+                        Confidence threshold for language auto-detection (default: 0.5)
+  --language-detection-segments N
+                        Audio segments to sample for language detection (default: 1)
+  --length-penalty F    Beam search length penalty; >1 favors longer, <1 favors shorter (default: 1.0)
+  --prompt-reset-on-temperature T
+                        Reset initial prompt when temperature fallback hits threshold (default: 0.5)
+  --no-suppress-blank   Disable blank token suppression (may help soft/quiet speech)
+  --suppress-tokens IDS Comma-separated token IDs to suppress in addition to default -1
+  --max-initial-timestamp T
+                        Maximum timestamp for the first segment in seconds (default: 1.0)
+  --prepend-punctuations CHARS
+                        Punctuation characters merged into preceding word (default: "'¿([{-)
+  --append-punctuations CHARS
+                        Punctuation characters merged into following word (default: "'.。,，!！?？:：")]}、")
+
+Preprocessing:
+  --normalize           Normalize audio volume (EBU R128 loudnorm) before transcription
+  --denoise             Apply noise reduction (high-pass + FFT denoise) before transcription
 
 Advanced:
   --diarize             Speaker diarization (requires pyannote.audio)
+  --min-speakers N      Minimum number of speakers hint for diarization
+  --max-speakers N      Maximum number of speakers hint for diarization
   --min-confidence PROB Filter segments below this avg word confidence (0.0–1.0)
   --skip-existing       Skip files whose output already exists (batch mode)
+  --detect-language-only
+                        Detect language and exit (no transcription). Output: "Language: en (probability: 0.984)"
+                        With --format json: {"language": "en", "language_probability": 0.984}
+  --stats-file PATH     Write JSON stats sidecar after transcription (processing time, RTF, word count, etc.)
+                        Directory path → writes {stem}.stats.json inside; file path → exact path
 
 Device:
   --device DEV          auto | cpu | cuda (default: auto)
-  --compute-type TYPE   auto | int8 | float16 | float32 (default: auto)
+  --compute-type TYPE   auto | int8 | int8_float16 | float16 | float32 (default: auto)
+                        int8_float16 = hybrid mode for GPU (saves VRAM, minimal quality loss)
+  --threads N           CPU thread count for CTranslate2 (default: auto)
   -q, --quiet           Suppress progress and status messages
+
+Utility:
+  --version             Print installed faster-whisper version and exit
+  --update              Upgrade faster-whisper in the skill venv and exit
 ```
 
 ## Output Formats
@@ -293,6 +406,27 @@ WEBVTT
 00:00:02.800 --> 00:00:04.200
 [SPEAKER_2] Thanks for having me.
 ```
+
+### TSV (`--format tsv`)
+Tab-separated values, OpenAI Whisper–compatible. Columns: `start_ms`, `end_ms`, `text`:
+```
+0	2500	Hello, welcome to the meeting.
+2800	4200	Thanks for having me.
+```
+Useful for piping into other tools or spreadsheets. No header row.
+
+### LRC (`--format lrc`)
+Timed lyrics format used by music players (e.g., Foobar2000, VLC, AIMP). Timestamps use `[mm:ss.xx]` where `xx` = centiseconds:
+```
+[00:00.50]Hello, welcome to the meeting.
+[00:02.80]Thanks for having me.
+```
+With diarization, speaker labels are included:
+```
+[00:00.50][SPEAKER_1] Hello, welcome to the meeting.
+[00:02.80][SPEAKER_2] Thanks for having me.
+```
+Default file extension: `.lrc`. Useful for music transcription, karaoke, and any workflow requiring timed text with music-player compatibility.
 
 ## Speaker Diarization
 
@@ -442,9 +576,14 @@ Batch mode prints a summary after all files complete:
 **Out of memory**: Use smaller model, `--compute-type int8`, or `--batch-size 4`
 **Slow on CPU**: Expected — use GPU for practical transcription
 **Model download fails**: Check `~/.cache/huggingface/` permissions
-**Diarization model fails**: Ensure HuggingFace token exists and model agreements accepted
+**Diarization model fails**: Ensure HuggingFace token exists and model agreements accepted;
+  or pass token directly with `--hf-token hf_xxx`
 **URL download fails**: Check yt-dlp is installed (`pipx install yt-dlp`)
 **No audio files in batch**: Check file extensions match supported formats
+**Check installed version**: Run `./scripts/transcribe --version`
+**Upgrade faster-whisper**: Run `./setup.sh --update` (upgrades in-place, no full reinstall)
+**Hallucinations on silence/music**: Try `--temperature 0.0 --no-speech-threshold 0.8`
+**VAD splits speech incorrectly**: Tune with `--vad-threshold 0.3` (lower) or `--min-silence-duration 300`
 
 ## References
 

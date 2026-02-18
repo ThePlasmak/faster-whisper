@@ -88,31 +88,61 @@ def is_url(path):
 # Output formatters
 # ---------------------------------------------------------------------------
 
-def to_srt(segments):
+def to_srt(segments, max_words_per_line=None):
     """Format segments as SRT subtitle content."""
     lines = []
-    for i, seg in enumerate(segments, 1):
+    cue_num = 1
+    for seg in segments:
         text = seg["text"].strip()
         if seg.get("speaker"):
             text = f"[{seg['speaker']}] {text}"
-        lines.append(str(i))
-        lines.append(f"{format_ts_srt(seg['start'])} --> {format_ts_srt(seg['end'])}")
-        lines.append(text)
-        lines.append("")
+        if max_words_per_line and seg.get("words"):
+            words = seg["words"]
+            for i in range(0, len(words), max_words_per_line):
+                chunk = words[i:i + max_words_per_line]
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                lines.append(str(cue_num))
+                lines.append(f"{format_ts_srt(chunk[0]['start'])} --> {format_ts_srt(chunk[-1]['end'])}")
+                lines.append(chunk_text)
+                lines.append("")
+                cue_num += 1
+        else:
+            lines.append(str(cue_num))
+            lines.append(f"{format_ts_srt(seg['start'])} --> {format_ts_srt(seg['end'])}")
+            lines.append(text)
+            lines.append("")
+            cue_num += 1
     return "\n".join(lines)
 
 
-def to_vtt(segments):
+def to_vtt(segments, max_words_per_line=None):
     """Format segments as WebVTT subtitle content."""
     lines = ["WEBVTT", ""]
-    for i, seg in enumerate(segments, 1):
+    cue_num = 1
+    for seg in segments:
         text = seg["text"].strip()
         if seg.get("speaker"):
             text = f"[{seg['speaker']}] {text}"
-        lines.append(str(i))
-        lines.append(f"{format_ts_vtt(seg['start'])} --> {format_ts_vtt(seg['end'])}")
-        lines.append(text)
-        lines.append("")
+        if max_words_per_line and seg.get("words"):
+            words = seg["words"]
+            for i in range(0, len(words), max_words_per_line):
+                chunk = words[i:i + max_words_per_line]
+                chunk_text = "".join(w["word"] for w in chunk).strip()
+                if seg.get("speaker"):
+                    chunk_text = f"[{seg['speaker']}] {chunk_text}"
+                lines.append(str(cue_num))
+                lines.append(f"{format_ts_vtt(chunk[0]['start'])} --> {format_ts_vtt(chunk[-1]['end'])}")
+                lines.append(chunk_text)
+                lines.append("")
+                cue_num += 1
+        else:
+            lines.append(str(cue_num))
+            lines.append(f"{format_ts_vtt(seg['start'])} --> {format_ts_vtt(seg['end'])}")
+            lines.append(text)
+            lines.append("")
+            cue_num += 1
     return "\n".join(lines)
 
 
@@ -131,6 +161,40 @@ def to_text(segments):
             lines.append(f"\n[{sp}]")
         lines.append(seg["text"])
     return "".join(lines).strip()
+
+
+def to_tsv(segments):
+    """Format segments as TSV (OpenAI Whisper format): start_ms TAB end_ms TAB text"""
+    lines = []
+    for seg in segments:
+        start_ms = int(round(seg["start"] * 1000))
+        end_ms = int(round(seg["end"] * 1000))
+        text = seg["text"].strip()
+        if seg.get("speaker"):
+            text = f"[{seg['speaker']}] {text}"
+        lines.append(f"{start_ms}\t{end_ms}\t{text}")
+    return "\n".join(lines)
+
+
+def to_lrc(segments):
+    """Format segments as LRC (timed lyrics) format used by music players.
+
+    Format: [mm:ss.xx]Lyric line here
+    Where xx = centiseconds (hundredths of a second).
+    """
+    lines = []
+    for seg in segments:
+        t = seg["start"]
+        mm = int(t // 60)
+        ss = t % 60
+        ss_int = int(ss)
+        cs = int((ss - ss_int) * 100)
+        ts = f"[{mm:02d}:{ss_int:02d}.{cs:02d}]"
+        text = seg["text"].strip()
+        if seg.get("speaker"):
+            text = f"[{seg['speaker']}] {text}"
+        lines.append(f"{ts}{text}")
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +237,55 @@ def download_url(url, quiet=False):
         sys.exit(1)
 
     return str(files[0]), tmpdir
+
+
+# ---------------------------------------------------------------------------
+# Audio preprocessing
+# ---------------------------------------------------------------------------
+
+def preprocess_audio(audio_path, normalize=False, denoise=False, quiet=False):
+    """Preprocess audio with ffmpeg filters (normalize volume, reduce noise).
+
+    Returns (processed_path, tmp_path_to_cleanup_or_None).
+    """
+    if not normalize and not denoise:
+        return audio_path, None
+
+    filters = []
+    if denoise:
+        # High-pass to remove rumble + FFT-based noise reduction
+        filters.append("highpass=f=200")
+        filters.append("afftdn=nf=-25")
+    if normalize:
+        # EBU R128 loudness normalization
+        filters.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+
+    tmp_path = audio_path + ".preprocessed.wav"
+    filter_str = ",".join(filters)
+    cmd = [
+        "ffmpeg", "-y", "-i", audio_path,
+        "-af", filter_str,
+        "-ar", "16000", "-ac", "1",
+        tmp_path,
+    ]
+
+    if not quiet:
+        labels = []
+        if normalize:
+            labels.append("normalizing")
+        if denoise:
+            labels.append("denoising")
+        print(f"🔧 Preprocessing: {' + '.join(labels)}...", file=sys.stderr)
+
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+        return tmp_path, tmp_path
+    except subprocess.CalledProcessError:
+        if not quiet:
+            print("⚠️  Preprocessing failed, using original audio", file=sys.stderr)
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        return audio_path, None
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +441,7 @@ def run_alignment(audio_path, segments, quiet=False):
 # Speaker diarization
 # ---------------------------------------------------------------------------
 
-def run_diarization(audio_path, segments, quiet=False):
+def run_diarization(audio_path, segments, quiet=False, min_speakers=None, max_speakers=None, hf_token=None):
     """Assign speaker labels to segments using pyannote.audio."""
     try:
         from pyannote.audio import Pipeline as PyannotePipeline
@@ -345,8 +458,12 @@ def run_diarization(audio_path, segments, quiet=False):
         print("🔊 Running speaker diarization...", file=sys.stderr)
 
     try:
+        pretrained_kwargs = {}
+        if hf_token:
+            pretrained_kwargs["use_auth_token"] = hf_token
         pipeline = PyannotePipeline.from_pretrained(
-            "pyannote/speaker-diarization-3.1"
+            "pyannote/speaker-diarization-3.1",
+            **pretrained_kwargs,
         )
     except Exception as e:
         print(f"Error loading diarization model: {e}", file=sys.stderr)
@@ -382,7 +499,12 @@ def run_diarization(audio_path, segments, quiet=False):
             tmp_wav = None
 
     try:
-        diarize_result = pipeline(diarize_path)
+        diarize_kwargs = {}
+        if min_speakers is not None:
+            diarize_kwargs["min_speakers"] = min_speakers
+        if max_speakers is not None:
+            diarize_kwargs["max_speakers"] = max_speakers
+        diarize_result = pipeline(diarize_path, **diarize_kwargs)
     finally:
         if tmp_wav and os.path.exists(tmp_wav):
             os.remove(tmp_wav)
@@ -472,6 +594,59 @@ def run_diarization(audio_path, segments, quiet=False):
 
 
 # ---------------------------------------------------------------------------
+# Sentence merging
+# ---------------------------------------------------------------------------
+
+_TERMINAL_PUNCT = re.compile(r'[.!?…。！？]["\')\]]*\s*$')
+
+
+def merge_sentences(segments):
+    """Merge consecutive short segments into sentence-boundary-aware chunks.
+
+    A new chunk is started when:
+    - The previous segment's text ends with terminal punctuation (. ! ? … etc.)
+    - OR the gap between consecutive segments exceeds 2 seconds.
+    """
+    MAX_GAP = 2.0  # seconds
+
+    merged = []
+    accum = []
+
+    def flush():
+        if not accum:
+            return
+        start = accum[0]["start"]
+        end = accum[-1]["end"]
+        text = " ".join(s["text"].strip() for s in accum).strip()
+        words = []
+        for s in accum:
+            words.extend(s.get("words", []))
+        # Most common speaker in merged segments
+        speakers = [s.get("speaker") for s in accum if s.get("speaker")]
+        speaker = max(set(speakers), key=speakers.count) if speakers else None
+        seg = {"start": start, "end": end, "text": text}
+        if words:
+            seg["words"] = words
+        if speaker:
+            seg["speaker"] = speaker
+        merged.append(seg)
+
+    for seg in segments:
+        if accum:
+            gap = seg["start"] - accum[-1]["end"]
+            if gap > MAX_GAP:
+                flush()
+                accum = []
+        accum.append(seg)
+        if _TERMINAL_PUNCT.search(seg["text"]):
+            flush()
+            accum = []
+
+    flush()
+    return merged
+
+
+# ---------------------------------------------------------------------------
 # File resolution
 # ---------------------------------------------------------------------------
 
@@ -511,24 +686,150 @@ def transcribe_file(audio_path, pipeline, args):
     """Transcribe a single audio file. Returns result dict."""
     t0 = time.time()
 
+    # --- Preprocessing (normalize / denoise) ---
+    preprocess_tmp = None
+    effective_path = str(audio_path)
+    if args.normalize or args.denoise:
+        effective_path, preprocess_tmp = preprocess_audio(
+            effective_path, normalize=args.normalize, denoise=args.denoise,
+            quiet=args.quiet,
+        )
+
     need_words = (
         args.word_timestamps
         or args.min_confidence is not None
         or args.diarize   # word-level needed for accurate speaker assignment
-    )
+    ) and not args.stream  # streaming skips post-processing
 
     kw = dict(
         language=args.language,
+        task="translate" if args.translate else "transcribe",
         beam_size=args.beam_size,
         word_timestamps=need_words,
         vad_filter=not args.no_vad,
         hotwords=args.hotwords,
         initial_prompt=args.initial_prompt,
+        prefix=args.prefix,
+        condition_on_previous_text=not args.no_condition_on_previous_text,
+        multilingual=args.multilingual if args.multilingual else None,
     )
+
+    # Optional parameters — only pass if explicitly set (avoids overriding defaults)
+    if args.hallucination_silence_threshold is not None:
+        kw["hallucination_silence_threshold"] = args.hallucination_silence_threshold
+    if args.compression_ratio_threshold is not None:
+        kw["compression_ratio_threshold"] = args.compression_ratio_threshold
+    if args.log_prob_threshold is not None:
+        kw["log_prob_threshold"] = args.log_prob_threshold
+    if args.max_new_tokens is not None:
+        kw["max_new_tokens"] = args.max_new_tokens
+    if args.clip_timestamps is not None:
+        # BatchedInferencePipeline expects List[dict] with "start"/"end" keys (seconds as floats).
+        # Parse "0,3" → [{"start": 0.0, "end": 3.0}]
+        # Parse "0,30;60,90" → [{"start": 0.0, "end": 30.0}, {"start": 60.0, "end": 90.0}]
+        parsed_clips = []
+        for clip_str in args.clip_timestamps.split(";"):
+            parts = clip_str.strip().split(",")
+            if len(parts) == 2:
+                parsed_clips.append({"start": float(parts[0]), "end": float(parts[1])})
+            else:
+                raise ValueError(f"Invalid clip range '{clip_str}'. Expected 'start,end' (seconds).")
+        kw["clip_timestamps"] = parsed_clips
+    if args.progress:
+        kw["log_progress"] = True
+
     if not args.no_batch:
         kw["batch_size"] = args.batch_size
 
-    segments_iter, info = pipeline.transcribe(str(audio_path), **kw)
+    # VAD tuning parameters
+    vad_dict = {}
+    vad_threshold = args.vad_threshold if args.vad_threshold is not None else args.vad_onset
+    vad_neg_threshold = args.vad_neg_threshold if args.vad_neg_threshold is not None else args.vad_offset
+    if vad_threshold is not None:
+        vad_dict["threshold"] = vad_threshold
+    if vad_neg_threshold is not None:
+        vad_dict["neg_threshold"] = vad_neg_threshold
+    if args.min_speech_duration is not None:
+        vad_dict["min_speech_duration_ms"] = args.min_speech_duration
+    if args.max_speech_duration is not None:
+        vad_dict["max_speech_duration_s"] = args.max_speech_duration
+    if args.min_silence_duration is not None:
+        vad_dict["min_silence_duration_ms"] = args.min_silence_duration
+    if args.speech_pad is not None:
+        vad_dict["speech_pad_ms"] = args.speech_pad
+    if vad_dict:
+        kw["vad_parameters"] = vad_dict
+
+    # Temperature control
+    if args.temperature is not None:
+        temps = [float(t.strip()) for t in args.temperature.split(",")]
+        kw["temperature"] = temps[0] if len(temps) == 1 else temps
+
+    # No-speech threshold
+    if args.no_speech_threshold is not None:
+        kw["no_speech_threshold"] = args.no_speech_threshold
+
+    # Beam search / sampling tuning
+    if args.best_of is not None:
+        kw["best_of"] = args.best_of
+    if args.patience is not None:
+        kw["patience"] = args.patience
+    if args.repetition_penalty is not None:
+        kw["repetition_penalty"] = args.repetition_penalty
+    if args.no_repeat_ngram_size is not None:
+        kw["no_repeat_ngram_size"] = args.no_repeat_ngram_size
+
+    # --- Advanced inference params (Part 1 new flags) ---
+    if args.without_timestamps:
+        conflicts = (
+            args.word_timestamps
+            or args.format in ("srt", "vtt", "tsv")
+            or args.diarize
+        )
+        if conflicts:
+            print(
+                "⚠️  --without-timestamps ignored: incompatible with "
+                "--word-timestamps / --format srt/vtt/tsv / --diarize",
+                file=sys.stderr,
+            )
+        else:
+            kw["without_timestamps"] = True
+
+    if args.chunk_length is not None:
+        kw["chunk_length"] = args.chunk_length
+
+    if args.language_detection_threshold is not None:
+        kw["language_detection_threshold"] = args.language_detection_threshold
+
+    if args.language_detection_segments is not None:
+        kw["language_detection_segments"] = args.language_detection_segments
+
+    if args.length_penalty is not None:
+        kw["length_penalty"] = args.length_penalty
+
+    if args.prompt_reset_on_temperature is not None:
+        kw["prompt_reset_on_temperature"] = args.prompt_reset_on_temperature
+
+    if args.no_suppress_blank:
+        kw["suppress_blank"] = False
+
+    if args.suppress_tokens is not None:
+        try:
+            ids = [int(x.strip()) for x in args.suppress_tokens.split(",") if x.strip()]
+            kw["suppress_tokens"] = [-1] + ids
+        except ValueError:
+            print(f"⚠️  Invalid --suppress-tokens value: {args.suppress_tokens!r} — skipped", file=sys.stderr)
+
+    if args.max_initial_timestamp is not None:
+        kw["max_initial_timestamp"] = args.max_initial_timestamp
+
+    if args.prepend_punctuations is not None:
+        kw["prepend_punctuations"] = args.prepend_punctuations
+
+    if args.append_punctuations is not None:
+        kw["append_punctuations"] = args.append_punctuations
+
+    segments_iter, info = pipeline.transcribe(effective_path, **kw)
 
     segments = []
     full_text = ""
@@ -556,18 +857,29 @@ def transcribe_file(audio_path, pipeline, args):
 
         segments.append(seg_data)
 
+        # Streaming: print segment immediately
+        if args.stream:
+            line = f"[{format_ts_vtt(seg.start)} → {format_ts_vtt(seg.end)}] {seg.text.strip()}"
+            print(line, flush=True)
+
     # Refine word timestamps with wav2vec2 (before diarization so it benefits)
     # Auto-runs whenever word timestamps are computed (--precise, --diarize,
     # --word-timestamps, --min-confidence all trigger word-level output)
-    if need_words:
-        segments = run_alignment(str(audio_path), segments, quiet=args.quiet)
+    if need_words and not args.stream:
+        segments = run_alignment(effective_path, segments, quiet=args.quiet)
 
     # Diarize after transcription (and alignment if --precise)
     speakers = None
-    if args.diarize:
+    if args.diarize and not args.stream:
         segments, speakers = run_diarization(
-            str(audio_path), segments, quiet=args.quiet
+            effective_path, segments, quiet=args.quiet,
+            min_speakers=args.min_speakers, max_speakers=args.max_speakers,
+            hf_token=args.hf_token,
         )
+
+    # Cleanup preprocessing temp file
+    if preprocess_tmp and os.path.exists(preprocess_tmp):
+        os.remove(preprocess_tmp)
 
     elapsed = time.time() - t0
     dur = info.duration
@@ -585,12 +897,15 @@ def transcribe_file(audio_path, pipeline, args):
             "realtime_factor": rt,
         },
     }
+    if args.translate:
+        result["task"] = "translate"
     if speakers:
         result["speakers"] = speakers
 
     if not args.quiet:
+        task_label = "translated" if args.translate else "transcribed"
         print(
-            f"✅ {result['file']}: {format_duration(dur)} in "
+            f"✅ {result['file']}: {format_duration(dur)} {task_label} in "
             f"{format_duration(elapsed)} ({rt}× realtime)",
             file=sys.stderr,
         )
@@ -602,17 +917,24 @@ def transcribe_file(audio_path, pipeline, args):
 # Output
 # ---------------------------------------------------------------------------
 
-EXT_MAP = {"text": ".txt", "json": ".json", "srt": ".srt", "vtt": ".vtt"}
+EXT_MAP = {
+    "text": ".txt", "json": ".json", "srt": ".srt",
+    "vtt": ".vtt", "tsv": ".tsv", "lrc": ".lrc",
+}
 
 
-def format_result(result, fmt):
+def format_result(result, fmt, max_words_per_line=None):
     """Render a result dict in the requested format."""
     if fmt == "json":
         return json.dumps(result, indent=2, ensure_ascii=False)
     if fmt == "srt":
-        return to_srt(result["segments"])
+        return to_srt(result["segments"], max_words_per_line=max_words_per_line)
     if fmt == "vtt":
-        return to_vtt(result["segments"])
+        return to_vtt(result["segments"], max_words_per_line=max_words_per_line)
+    if fmt == "tsv":
+        return to_tsv(result["segments"])
+    if fmt == "lrc":
+        return to_lrc(result["segments"])
     return to_text(result["segments"])
 
 
@@ -621,6 +943,38 @@ def format_result(result, fmt):
 # ---------------------------------------------------------------------------
 
 def main():
+    # Early exit handlers — must run BEFORE argparse so they work without AUDIO positional arg
+    _SCRIPT_DIR = Path(__file__).parent
+
+    if "--version" in sys.argv:
+        try:
+            import importlib.metadata
+            _fw_version = importlib.metadata.version("faster-whisper")
+        except Exception:
+            _fw_version = getattr(sys.modules.get("faster_whisper"), "__version__", "unknown")
+        print(f"faster-whisper {_fw_version}")
+        sys.exit(0)
+
+    if "--update" in sys.argv:
+        _venv_python = _SCRIPT_DIR.parent / ".venv" / "bin" / "python"
+        if shutil.which("uv"):
+            subprocess.run(
+                ["uv", "pip", "install", "--python", str(_venv_python), "--upgrade", "faster-whisper"],
+                check=True,
+            )
+        else:
+            subprocess.run(
+                [str(_venv_python), "-m", "pip", "install", "--upgrade", "faster-whisper"],
+                check=True,
+            )
+        try:
+            import importlib.metadata
+            _fw_version = importlib.metadata.version("faster-whisper")
+        except Exception:
+            _fw_version = "unknown"
+        print(f"✅ faster-whisper updated to {_fw_version}")
+        sys.exit(0)
+
     p = argparse.ArgumentParser(
         description="Transcribe audio with faster-whisper",
         epilog=(
@@ -647,6 +1001,10 @@ def main():
         help="Whisper model (default: distil-large-v3.5)",
     )
     p.add_argument(
+        "--revision", default=None, metavar="REV",
+        help="Model revision (git branch/tag/commit hash) to pin a specific version",
+    )
+    p.add_argument(
         "-l", "--language", default=None,
         help="Language code, e.g. en, es, fr (auto-detects if omitted)",
     )
@@ -655,14 +1013,30 @@ def main():
         help="Prompt to condition the model (terminology, formatting hints)",
     )
     p.add_argument(
+        "--prefix", default=None, metavar="TEXT",
+        help="Prefix to condition the first segment (e.g. known starting words)",
+    )
+    p.add_argument(
         "--hotwords", default=None, metavar="WORDS",
         help="Hotwords to boost recognition (space-separated)",
+    )
+    p.add_argument(
+        "--translate", action="store_true",
+        help="Translate to English instead of transcribing",
+    )
+    p.add_argument(
+        "--multilingual", action="store_true",
+        help="Enable multilingual/code-switching mode (helps smaller models)",
+    )
+    p.add_argument(
+        "--hf-token", default=None, metavar="TOKEN",
+        help="HuggingFace token for private models and diarization (overrides cached token)",
     )
 
     # --- Output format ---
     p.add_argument(
         "-f", "--format", default="text",
-        choices=["text", "json", "srt", "vtt"],
+        choices=["text", "json", "srt", "vtt", "tsv", "lrc"],
         help="Output format (default: text)",
     )
     p.add_argument(
@@ -670,8 +1044,29 @@ def main():
         help="Include word-level timestamps (auto-enabled for --diarize)",
     )
     p.add_argument(
+        "--stream", action="store_true",
+        help="Output segments as they are transcribed (streaming mode; disables diarize/alignment)",
+    )
+    p.add_argument(
+        "--max-words-per-line", type=int, default=None, metavar="N",
+        help="For SRT/VTT, split long segments into sub-cues with at most N words each "
+             "(requires word-level timestamps; falls back to full segment if no word data)",
+    )
+    p.add_argument(
+        "--merge-sentences", action="store_true",
+        help="Merge consecutive segments into sentence-level chunks "
+             "(useful for improving SRT/VTT readability)",
+    )
+    p.add_argument(
         "-o", "--output", default=None, metavar="PATH",
         help="Output file or directory (directory for batch mode)",
+    )
+    p.add_argument(
+        "--output-template", default=None, metavar="TEMPLATE",
+        help="Output filename template for batch mode. Supports: "
+             "{stem} (input filename without ext), {lang} (detected language), "
+             "{ext} (format extension), {model} (model name). "
+             "Example: '{stem}_{lang}.{ext}' → 'interview_en.srt'",
     )
 
     # --- Inference tuning ---
@@ -680,18 +1075,166 @@ def main():
         help="Beam search size (default: 5)",
     )
     p.add_argument(
+        "--temperature", default=None, metavar="T",
+        help="Sampling temperature or comma-separated fallback list (e.g. '0.0' or '0.0,0.2,0.4'); "
+             "default uses faster-whisper's built-in schedule [0.0,0.2,0.4,0.6,0.8,1.0]",
+    )
+    p.add_argument(
+        "--no-speech-threshold", type=float, default=None, metavar="PROB",
+        help="Probability threshold below which segments are treated as silence/no-speech "
+             "(default: 0.6)",
+    )
+    p.add_argument(
         "--batch-size", type=int, default=8, metavar="N",
         help="Batch size for batched inference (default: 8; reduce if OOM)",
     )
     p.add_argument("--no-vad", action="store_true",
                     help="Disable voice activity detection")
+    p.add_argument(
+        "--vad-threshold", type=float, default=None, metavar="T",
+        help="VAD speech probability threshold (default: 0.5); higher = more conservative",
+    )
+    p.add_argument(
+        "--vad-neg-threshold", type=float, default=None, metavar="T",
+        help="VAD negative threshold for ending speech segments (default: auto)",
+    )
+    p.add_argument(
+        "--vad-onset", type=float, default=None, metavar="T",
+        help="Alias for --vad-threshold (legacy compatibility)",
+    )
+    p.add_argument(
+        "--vad-offset", type=float, default=None, metavar="T",
+        help="Alias for --vad-neg-threshold (legacy compatibility)",
+    )
+    p.add_argument(
+        "--min-speech-duration", type=int, default=None, metavar="MS",
+        help="Minimum speech segment duration in milliseconds (default: 0)",
+    )
+    p.add_argument(
+        "--max-speech-duration", type=float, default=None, metavar="SEC",
+        help="Maximum speech segment duration in seconds (default: unlimited)",
+    )
+    p.add_argument(
+        "--min-silence-duration", type=int, default=None, metavar="MS",
+        help="Minimum silence duration before splitting a segment in ms (default: 2000)",
+    )
+    p.add_argument(
+        "--speech-pad", type=int, default=None, metavar="MS",
+        help="Padding added around speech segments in milliseconds (default: 400)",
+    )
     p.add_argument("--no-batch", action="store_true",
                     help="Disable batched inference (use standard WhisperModel)")
+    p.add_argument(
+        "--hallucination-silence-threshold", type=float, default=None, metavar="SEC",
+        help="Skip silent sections where model hallucinates (e.g. 1.0 sec)",
+    )
+    p.add_argument(
+        "--no-condition-on-previous-text", action="store_true",
+        help="Don't condition on previous text (reduces repetition/hallucination loops)",
+    )
+    p.add_argument(
+        "--compression-ratio-threshold", type=float, default=None, metavar="RATIO",
+        help="Filter segments above this compression ratio (default: 2.4)",
+    )
+    p.add_argument(
+        "--log-prob-threshold", type=float, default=None, metavar="PROB",
+        help="Filter segments below this avg log probability (default: -1.0)",
+    )
+    p.add_argument(
+        "--max-new-tokens", type=int, default=None, metavar="N",
+        help="Maximum tokens per segment (prevents runaway generation)",
+    )
+    p.add_argument(
+        "--clip-timestamps", default=None, metavar="RANGE",
+        help="Transcribe specific time ranges: '30,60' or '0,30;60,90' (seconds)",
+    )
+    p.add_argument(
+        "--progress", action="store_true",
+        help="Show transcription progress bar",
+    )
+    p.add_argument(
+        "--best-of", type=int, default=None, metavar="N",
+        help="Number of candidates when sampling with non-zero temperature (default: 5)",
+    )
+    p.add_argument(
+        "--patience", type=float, default=None, metavar="F",
+        help="Beam search patience factor; higher allows more beam candidates (default: 1.0)",
+    )
+    p.add_argument(
+        "--repetition-penalty", type=float, default=None, metavar="F",
+        help="Penalty applied to previously generated tokens to reduce repetition (default: 1.0)",
+    )
+    p.add_argument(
+        "--no-repeat-ngram-size", type=int, default=None, metavar="N",
+        help="Prevent repetition of n-grams of this size (default: 0 = disabled)",
+    )
+
+    # --- Advanced inference tuning ---
+    p.add_argument(
+        "--without-timestamps", action="store_true",
+        help="Output text segments without timing information (faster; "
+             "incompatible with --word-timestamps, --format srt/vtt/tsv, --diarize)",
+    )
+    p.add_argument(
+        "--chunk-length", type=int, default=None, metavar="N",
+        help="Audio chunk length in seconds for batched inference (default: auto); "
+             "ignored with --no-batch",
+    )
+    p.add_argument(
+        "--language-detection-threshold", type=float, default=None, metavar="T",
+        help="Confidence threshold for automatic language detection (default: 0.5)",
+    )
+    p.add_argument(
+        "--language-detection-segments", type=int, default=None, metavar="N",
+        help="Number of audio segments to sample for language detection "
+             "(default: 1; increase for more accurate detection)",
+    )
+    p.add_argument(
+        "--length-penalty", type=float, default=None, metavar="F",
+        help="Length penalty for beam search; >1 favors longer outputs, <1 favors shorter "
+             "(default: 1.0)",
+    )
+    p.add_argument(
+        "--prompt-reset-on-temperature", type=float, default=None, metavar="T",
+        help="Reset initial prompt when temperature fallback reaches this threshold (default: 0.5)",
+    )
+    p.add_argument(
+        "--no-suppress-blank", action="store_true",
+        help="Disable blank token suppression (may improve transcription of soft speech)",
+    )
+    p.add_argument(
+        "--suppress-tokens", default=None, metavar="IDS",
+        help="Comma-separated token IDs to suppress in addition to the default -1 "
+             "(e.g. '1234,5678')",
+    )
+    p.add_argument(
+        "--max-initial-timestamp", type=float, default=None, metavar="T",
+        help="Maximum timestamp allowed for the first transcribed segment in seconds "
+             "(default: 1.0)",
+    )
+    p.add_argument(
+        "--prepend-punctuations", default=None, metavar="CHARS",
+        help="Punctuation characters to merge into the preceding word "
+             "(default: \"'¿([{-\")",
+    )
+    p.add_argument(
+        "--append-punctuations", default=None, metavar="CHARS",
+        help="Punctuation characters to merge into the following word "
+             "(default: \"'.。,，!！?？:：\")]}\、\")",
+    )
 
     # --- Advanced features ---
     p.add_argument(
         "--diarize", action="store_true",
         help="Speaker diarization (requires pyannote.audio; install via setup.sh --diarize)",
+    )
+    p.add_argument(
+        "--min-speakers", type=int, default=None, metavar="N",
+        help="Minimum number of speakers hint for diarization",
+    )
+    p.add_argument(
+        "--max-speakers", type=int, default=None, metavar="N",
+        help="Maximum number of speakers hint for diarization",
     )
     p.add_argument(
         "--min-confidence", type=float, default=None, metavar="PROB",
@@ -701,6 +1244,27 @@ def main():
         "--skip-existing", action="store_true",
         help="Skip files whose output already exists (batch mode)",
     )
+    p.add_argument(
+        "--detect-language-only", action="store_true",
+        help="Detect the language of the audio and exit (no transcription). "
+             "Output: 'Language: en (probability: 0.984)'. With --format json: JSON object.",
+    )
+    p.add_argument(
+        "--stats-file", default=None, metavar="PATH",
+        help="Write performance stats JSON sidecar after transcription. "
+             "If a directory: writes {stem}.stats.json in that dir. "
+             "In batch mode, one stats file per input.",
+    )
+
+    # --- Preprocessing ---
+    p.add_argument(
+        "--normalize", action="store_true",
+        help="Normalize audio volume before transcription (EBU R128 loudnorm)",
+    )
+    p.add_argument(
+        "--denoise", action="store_true",
+        help="Apply noise reduction before transcription (high-pass + FFT denoise)",
+    )
 
     # --- Device ---
     p.add_argument(
@@ -709,12 +1273,26 @@ def main():
     )
     p.add_argument(
         "--compute-type", default="auto",
-        choices=["auto", "int8", "float16", "float32"],
-        help="Quantization (default: auto)",
+        choices=["auto", "int8", "int8_float16", "float16", "float32"],
+        help="Quantization (default: auto; int8_float16 = hybrid for GPU)",
+    )
+    p.add_argument(
+        "--threads", type=int, default=None, metavar="N",
+        help="Number of CPU threads for CTranslate2 inference (default: auto)",
     )
     p.add_argument(
         "-q", "--quiet", action="store_true",
         help="Suppress progress messages",
+    )
+
+    # --- Utility ---
+    p.add_argument(
+        "--version", action="store_true",
+        help="Show installed faster-whisper version and exit",
+    )
+    p.add_argument(
+        "--update", action="store_true",
+        help="Upgrade faster-whisper in the skill venv and exit",
     )
 
     # --- Backward compat (hidden) ---
@@ -728,10 +1306,51 @@ def main():
     if args.precise:
         args.word_timestamps = True
 
-    # ---- Resolve inputs ----
+    # Apply HuggingFace token to environment early (model loading picks it up)
+    if args.hf_token:
+        os.environ["HF_TOKEN"] = args.hf_token
+        os.environ["HUGGING_FACE_HUB_TOKEN"] = args.hf_token
+
+    # Handle "turbo" alias → large-v3-turbo
+    if args.model.lower() == "turbo":
+        args.model = "large-v3-turbo"
+
+    # Streaming mode disables post-processing that needs all segments
+    if args.stream:
+        if args.diarize:
+            print("⚠️  --stream disables --diarize (needs all segments)", file=sys.stderr)
+            args.diarize = False
+        if args.word_timestamps:
+            print("⚠️  --stream disables word-level alignment (needs all segments)", file=sys.stderr)
+
+    # Conflict check: --chunk-length requires batched mode
+    if args.chunk_length is not None and args.no_batch:
+        print("⚠️  --chunk-length ignored with --no-batch (only valid for batched inference)", file=sys.stderr)
+        args.chunk_length = None
+
+    # ---- Resolve inputs (including stdin '-') ----
     temp_dirs = []
+    stdin_tmp = None
+    raw_inputs = args.audio
+
+    # Check for stdin '-' usage
+    if "-" in raw_inputs:
+        if len(raw_inputs) > 1:
+            print("Error: stdin '-' cannot be combined with other inputs in batch mode", file=sys.stderr)
+            sys.exit(1)
+        if not args.quiet:
+            print("📥 Reading audio from stdin...", file=sys.stderr)
+        stdin_data = sys.stdin.buffer.read()
+        stdin_tmp = tempfile.NamedTemporaryFile(
+            delete=False, suffix=".audio", prefix="fw-stdin-"
+        )
+        stdin_tmp.write(stdin_data)
+        stdin_tmp.flush()
+        stdin_tmp.close()
+        raw_inputs = [stdin_tmp.name]
+
     audio_files = []
-    for inp in args.audio:
+    for inp in raw_inputs:
         if is_url(inp):
             path, td = download_url(inp, quiet=args.quiet)
             audio_files.append(path)
@@ -764,17 +1383,57 @@ def main():
     if not args.quiet:
         mode = f"batched (bs={args.batch_size})" if use_batched else "standard"
         gpu_str = f" on {gpu_name}" if device == "cuda" and gpu_name else ""
-        print(f"🎙️  {args.model} ({device}/{compute_type}){gpu_str} [{mode}]", file=sys.stderr)
+        task_str = " [translate→en]" if args.translate else ""
+        stream_str = " [streaming]" if args.stream else ""
+        print(f"🎙️  {args.model} ({device}/{compute_type}){gpu_str} [{mode}]{task_str}{stream_str}", file=sys.stderr)
         if is_batch:
             print(f"📁 {len(audio_files)} files queued", file=sys.stderr)
 
     # ---- Load model ----
     try:
-        model = WhisperModel(args.model, device=device, compute_type=compute_type)
+        model_kwargs = dict(device=device, compute_type=compute_type)
+        if args.revision is not None:
+            model_kwargs["revision"] = args.revision
+        if args.threads is not None:
+            model_kwargs["cpu_threads"] = args.threads
+        model = WhisperModel(args.model, **model_kwargs)
         pipe = BatchedInferencePipeline(model) if use_batched else model
     except Exception as e:
         print(f"Error loading model: {e}", file=sys.stderr)
         sys.exit(1)
+
+    # ---- Detect language only (early exit) ----
+    if args.detect_language_only:
+        try:
+            from faster_whisper.audio import decode_audio
+        except ImportError:
+            # Older versions may use different path
+            try:
+                from faster_whisper import decode_audio
+            except ImportError:
+                def decode_audio(path, sampling_rate=16000):
+                    import numpy as np
+                    import subprocess as _sp
+                    cmd = ["ffmpeg", "-i", path, "-ar", str(sampling_rate), "-ac", "1",
+                           "-f", "f32le", "-"]
+                    result = _sp.run(cmd, capture_output=True, check=True)
+                    return np.frombuffer(result.stdout, dtype=np.float32)
+
+        for audio_path in audio_files:
+            try:
+                audio_np = decode_audio(audio_path)
+                lang, lang_prob, _ = model.detect_language(audio=audio_np)
+                prob_val = float(lang_prob)
+                if args.format == "json":
+                    print(json.dumps({"language": lang, "language_probability": round(prob_val, 4)}, ensure_ascii=False))
+                else:
+                    print(f"Language: {lang} (probability: {prob_val:.3f})")
+            except Exception as e:
+                print(f"Error detecting language for {audio_path}: {e}", file=sys.stderr)
+                sys.exit(1)
+        if stdin_tmp and os.path.exists(stdin_tmp.name):
+            os.unlink(stdin_tmp.name)
+        sys.exit(0)
 
     # ---- Transcribe ----
     results = []
@@ -799,6 +1458,8 @@ def main():
 
         try:
             r = transcribe_file(audio_path, pipe, args)
+            # Store the original audio_path on result for stats/template use
+            r["_audio_path"] = audio_path
             results.append(r)
             total_audio += r["duration"]
         except Exception as e:
@@ -806,9 +1467,11 @@ def main():
             if not is_batch:
                 sys.exit(1)
 
-    # Cleanup temp dirs
+    # Cleanup temp dirs and stdin temp file
     for td in temp_dirs:
         shutil.rmtree(td, ignore_errors=True)
+    if stdin_tmp and os.path.exists(stdin_tmp.name):
+        os.unlink(stdin_tmp.name)
 
     if not results:
         if args.skip_existing:
@@ -820,13 +1483,38 @@ def main():
 
     # ---- Write output ----
     for r in results:
-        output = format_result(r, args.format)
+        # Apply --merge-sentences post-processing before formatting
+        if args.merge_sentences and r.get("segments"):
+            r["segments"] = merge_sentences(r["segments"])
+            # Rebuild full text from merged segments
+            r["text"] = " ".join(s["text"].strip() for s in r["segments"]).strip()
+
+        # Streaming mode already printed segments to stdout
+        if args.stream and not args.output:
+            _write_stats(r, args)
+            continue
+
+        output = format_result(r, args.format, max_words_per_line=args.max_words_per_line)
+
+        # Determine output filename stem for template/stats
+        audio_path = r.get("_audio_path", r["file"])
+        stem = Path(audio_path).stem
+        ext = EXT_MAP.get(args.format, ".txt").lstrip(".")
+        lang = r.get("language", "xx")
+        model_name = args.model
 
         if args.output:
             out_path = Path(args.output)
             if out_path.is_dir() or (is_batch and not out_path.suffix):
                 out_path.mkdir(parents=True, exist_ok=True)
-                dest = out_path / (Path(r["file"]).stem + EXT_MAP.get(args.format, ".txt"))
+                # Apply output template if provided
+                if args.output_template:
+                    filename = args.output_template.format(
+                        stem=stem, lang=lang, ext=ext, model=model_name,
+                    )
+                    dest = out_path / filename
+                else:
+                    dest = out_path / (stem + EXT_MAP.get(args.format, ".txt"))
             else:
                 dest = out_path
             dest.write_text(output, encoding="utf-8")
@@ -837,6 +1525,9 @@ def main():
                 print(f"\n=== {r['file']} ===")
             print(output)
 
+        # Write stats sidecar
+        _write_stats(r, args)
+
     # Batch summary
     if is_batch and not args.quiet:
         wall = time.time() - wall_start
@@ -846,6 +1537,49 @@ def main():
             f"in {format_duration(wall)} ({rt:.1f}× realtime)",
             file=sys.stderr,
         )
+
+
+def _write_stats(r, args):
+    """Write a JSON stats sidecar file for result r, if --stats-file is set."""
+    if not getattr(args, "stats_file", None):
+        return
+
+    audio_path = r.get("_audio_path", r["file"])
+    stem = Path(audio_path).stem
+    stats_path = Path(args.stats_file)
+
+    # Directory → write {stem}.stats.json inside it
+    if stats_path.is_dir() or args.stats_file.endswith(os.sep):
+        stats_path.mkdir(parents=True, exist_ok=True)
+        dest = stats_path / f"{stem}.stats.json"
+    else:
+        dest = stats_path
+
+    word_count = sum(len(s["text"].split()) for s in r.get("segments", []))
+    elapsed = r["stats"]["processing_time"]
+    duration = r.get("duration", 0)
+
+    stats = {
+        "file": r["file"],
+        "language": r.get("language"),
+        "language_probability": round(r.get("language_probability", 0), 4),
+        "duration_seconds": round(duration, 2),
+        "processing_time_seconds": elapsed,
+        "realtime_factor": r["stats"].get("realtime_factor", 0),
+        "segment_count": len(r.get("segments", [])),
+        "word_count": word_count,
+        "model": args.model,
+        "compute_type": args.compute_type,
+        "device": args.device,
+    }
+
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(stats, indent=2, ensure_ascii=False), encoding="utf-8")
+        if not getattr(args, "quiet", False):
+            print(f"📈 Stats: {dest}", file=sys.stderr)
+    except Exception as e:
+        print(f"⚠️  Failed to write stats file {dest}: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":
