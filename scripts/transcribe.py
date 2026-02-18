@@ -17,6 +17,9 @@ import sys
 import os
 import json
 import time
+import copy
+import csv
+import fnmatch
 import glob
 import argparse
 import tempfile
@@ -177,6 +180,30 @@ def to_tsv(segments):
             text = f"[{seg['speaker']}] {text}"
         lines.append(f"{start_ms}\t{end_ms}\t{text}")
     return "\n".join(lines)
+
+
+def to_csv(segments):
+    """Format segments as CSV with header: start_s, end_s, text [, speaker].
+
+    Properly quoted via the stdlib csv module — safe for commas in text.
+    start_s / end_s are decimal seconds (3 decimal places).
+    """
+    import io as _io
+    has_speakers = any(seg.get("speaker") for seg in segments)
+    fieldnames = ["start_s", "end_s", "text"] + (["speaker"] if has_speakers else [])
+    buf = _io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, lineterminator="\n")
+    writer.writeheader()
+    for seg in segments:
+        row = {
+            "start_s": f"{seg['start']:.3f}",
+            "end_s": f"{seg['end']:.3f}",
+            "text": seg["text"].strip(),
+        }
+        if has_speakers:
+            row["speaker"] = seg.get("speaker", "")
+        writer.writerow(row)
+    return buf.getvalue()
 
 
 def format_ts_ass(seconds):
@@ -1219,6 +1246,64 @@ def format_search_results(matches, query):
 
 
 # ---------------------------------------------------------------------------
+# Language map (per-file language override for batch mode)
+# ---------------------------------------------------------------------------
+
+def parse_language_map(lang_map_str):
+    """Parse --language-map value into a {pattern: lang_code} dict.
+
+    Two forms accepted:
+      Inline: "interview*.mp3=en,lecture.mp3=fr,keynote.wav=de"
+      JSON file: "@/path/to/map.json"  (must be a dict of {pattern: lang})
+
+    Patterns can be exact filenames, stems, or fnmatch glob patterns.
+    """
+    if not lang_map_str:
+        return {}
+
+    if lang_map_str.startswith("@"):
+        json_path = lang_map_str[1:]
+        with open(json_path, encoding="utf-8") as f:
+            return json.load(f)
+
+    mapping = {}
+    for part in lang_map_str.split(","):
+        part = part.strip()
+        if "=" not in part:
+            continue
+        pattern, lang = part.rsplit("=", 1)
+        mapping[pattern.strip()] = lang.strip()
+    return mapping
+
+
+def resolve_file_language(audio_path, lang_map, fallback=None):
+    """Return the language code for *audio_path* using *lang_map*.
+
+    Priority:
+      1. Exact filename match (e.g. "interview.mp3")
+      2. Exact stem match (e.g. "interview")
+      3. fnmatch glob match on filename (e.g. "interview*.mp3")
+      4. fnmatch glob match on stem (e.g. "interview*")
+      5. Fallback (global --language setting or None = auto-detect)
+    """
+    if not lang_map:
+        return fallback
+
+    name = Path(audio_path).name
+    stem = Path(audio_path).stem
+
+    for pattern, lang in lang_map.items():
+        if pattern in (name, stem):
+            return lang
+
+    for pattern, lang in lang_map.items():
+        if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(stem, pattern):
+            return lang
+
+    return fallback
+
+
+# ---------------------------------------------------------------------------
 # File resolution
 # ---------------------------------------------------------------------------
 
@@ -1498,8 +1583,8 @@ def transcribe_file(audio_path, pipeline, args):
 
 EXT_MAP = {
     "text": ".txt", "json": ".json", "srt": ".srt",
-    "vtt": ".vtt", "tsv": ".tsv", "lrc": ".lrc", "html": ".html",
-    "ass": ".ass", "ttml": ".ttml",
+    "vtt": ".vtt", "tsv": ".tsv", "csv": ".csv", "lrc": ".lrc",
+    "html": ".html", "ass": ".ass", "ttml": ".ttml",
 }
 
 
@@ -1513,6 +1598,8 @@ def format_result(result, fmt, max_words_per_line=None):
         return to_vtt(result["segments"], max_words_per_line=max_words_per_line)
     if fmt == "tsv":
         return to_tsv(result["segments"])
+    if fmt == "csv":
+        return to_csv(result["segments"])
     if fmt == "lrc":
         return to_lrc(result["segments"])
     if fmt == "html":
@@ -1599,6 +1686,13 @@ def main():
         help="Language code, e.g. en, es, fr (auto-detects if omitted)",
     )
     p.add_argument(
+        "--language-map", default=None, metavar="MAP",
+        help="Per-file language override for batch mode. Inline: 'interview*.mp3=en,lecture.wav=fr' "
+             "or JSON file: '@/path/to/map.json'. Overrides --language for matched files; "
+             "unmatched files fall back to --language (or auto-detect). "
+             "Patterns support fnmatch globs on filename or stem.",
+    )
+    p.add_argument(
         "--initial-prompt", default=None, metavar="TEXT",
         help="Prompt to condition the model (terminology, formatting hints)",
     )
@@ -1630,7 +1724,7 @@ def main():
     # --- Output format ---
     p.add_argument(
         "-f", "--format", default="text",
-        choices=["text", "json", "srt", "vtt", "tsv", "lrc", "html", "ass", "ttml"],
+        choices=["text", "json", "srt", "vtt", "tsv", "csv", "lrc", "html", "ass", "ttml"],
         help="Output format (default: text)",
     )
     p.add_argument(
@@ -2000,6 +2094,15 @@ def main():
         os.environ["HF_TOKEN"] = args.hf_token
         os.environ["HUGGING_FACE_HUB_TOKEN"] = args.hf_token
 
+    # Parse --language-map early so we can validate before loading the model
+    lang_map = {}
+    if getattr(args, "language_map", None):
+        try:
+            lang_map = parse_language_map(args.language_map)
+        except Exception as e:
+            print(f"Error parsing --language-map: {e}", file=sys.stderr)
+            sys.exit(1)
+
     # Apply faster_whisper library logging level
     logging.basicConfig()
     logging.getLogger("faster_whisper").setLevel(getattr(logging, args.log_level.upper()))
@@ -2189,8 +2292,17 @@ def main():
             print("⚠️  --retries is not supported with --parallel (ignored)", file=sys.stderr)
         pending = [af for af in audio_files if not _should_skip(af)]
         with ThreadPoolExecutor(max_workers=args.parallel) as executor:
+            # Build per-file args copies with language-map overrides
+            def _make_args(af):
+                file_lang = resolve_file_language(af, lang_map, args.language)
+                if file_lang != args.language:
+                    a = copy.copy(args)
+                    a.language = file_lang
+                    return a
+                return args
+
             future_to_path = {
-                executor.submit(transcribe_file, af, pipe, args): af
+                executor.submit(transcribe_file, af, pipe, _make_args(af)): af
                 for af in pending
             }
             for future in as_completed(future_to_path):
@@ -2205,25 +2317,56 @@ def main():
                     print(f"❌ {name}: {e}", file=sys.stderr)
                     failed_files.append((af, str(e)))
     else:
+        # ETA tracking for sequential batch mode
+        pending_files = [af for af in audio_files if not _should_skip(af)]
+        pending_total = len(pending_files)
+        eta_wall_start = time.time()
+        files_done = 0
+
         for audio_path in audio_files:
             name = Path(audio_path).name
 
             if _should_skip(audio_path):
                 continue
 
+            # Per-file language override via --language-map
+            file_lang = resolve_file_language(audio_path, lang_map, args.language)
+            if lang_map and file_lang != args.language and not args.quiet and is_batch:
+                print(f"   🌐 Language override: {file_lang}", file=sys.stderr)
+
+            # Build per-file args (only copy if language differs to avoid overhead)
+            file_args = args
+            if file_lang != args.language:
+                file_args = copy.copy(args)
+                file_args.language = file_lang
+
             if not args.quiet and is_batch:
-                print(f"▶️  {name}", file=sys.stderr)
+                # ETA prefix before file name (files_done = completed so far)
+                current_idx = files_done + 1  # 1-based index of current file
+                if files_done > 0:
+                    elapsed_so_far = time.time() - eta_wall_start
+                    avg_per_file = elapsed_so_far / files_done
+                    remaining = pending_total - files_done
+                    eta_sec = avg_per_file * remaining
+                    eta_str = format_duration(eta_sec)
+                    print(
+                        f"▶️  [{current_idx}/{pending_total}] {name}  |  ETA: {eta_str}",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(f"▶️  [{current_idx}/{pending_total}] {name}", file=sys.stderr)
 
             success = False
             last_error = None
             max_attempts = args.retries + 1
             for attempt in range(max_attempts):
                 try:
-                    r = transcribe_file(audio_path, pipe, args)
+                    r = transcribe_file(audio_path, pipe, file_args)
                     # Store the original audio_path on result for stats/template use
                     r["_audio_path"] = audio_path
                     results.append(r)
                     total_audio += r["duration"]
+                    files_done += 1
                     success = True
                     break
                 except Exception as e:
@@ -2243,6 +2386,7 @@ def main():
                     file=sys.stderr,
                 )
                 failed_files.append((audio_path, str(last_error)))
+                files_done += 1  # count failed files too for accurate ETA
                 if not is_batch:
                     sys.exit(1)
 

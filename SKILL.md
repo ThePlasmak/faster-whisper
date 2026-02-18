@@ -1,7 +1,7 @@
 ---
 name: faster-whisper
-description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT/TTML subtitles, speaker diarization, URL/YouTube input, batch processing, transcript search, chapter detection."
-version: 1.12.0
+description: "Local speech-to-text using faster-whisper. 4-6x faster than OpenAI Whisper with identical accuracy; GPU acceleration enables ~20x realtime transcription. SRT/VTT/TTML/CSV subtitles, speaker diarization, URL/YouTube input, batch processing with ETA, transcript search, chapter detection, per-file language map."
+version: 1.13.0
 author: ThePlasmak
 homepage: https://github.com/ThePlasmak/faster-whisper
 tags: ["audio", "transcription", "whisper", "speech-to-text", "ml", "cuda", "gpu", "subtitles", "diarization"]
@@ -118,6 +118,11 @@ This skill covers everything whisperx does — diarization (`--diarize`), word-l
 | **Podcast RSS (all episodes)** | `./scripts/transcribe --rss https://... --rss-latest 0 -o ./episodes/` | All episodes, one file each |
 | **Podcast + SRT subtitles** | `./scripts/transcribe --rss https://... --format srt -o ./subs/` | Subtitle all episodes |
 | **Retry on failure** | `./scripts/transcribe *.mp3 --retries 3 -o ./out/` | Retry up to 3× with backoff on error |
+| **CSV output** | `./scripts/transcribe audio.mp3 --format csv -o out.csv` | Spreadsheet-ready with header row; properly quoted |
+| **CSV with speakers** | `./scripts/transcribe audio.mp3 --diarize --format csv -o out.csv` | Adds speaker column |
+| **Language map (inline)** | `./scripts/transcribe *.mp3 --language-map "interview*.mp3=en,lecture.wav=fr"` | Per-file language in batch |
+| **Language map (JSON)** | `./scripts/transcribe *.mp3 --language-map @langs.json` | JSON file: {"pattern": "lang"} |
+| **Batch with ETA** | `./scripts/transcribe *.mp3 -o ./out/` | Automatic ETA shown for each file in batch |
 | **TTML subtitles** | `./scripts/transcribe audio.mp3 --format ttml -o subtitles.ttml` | Broadcast-standard DFXP/TTML (Netflix, BBC, Amazon) |
 | **TTML with speaker labels** | `./scripts/transcribe audio.mp3 --diarize --format ttml -o subtitles.ttml` | Speaker-labeled TTML |
 | **Search transcript** | `./scripts/transcribe audio.mp3 --search "keyword"` | Find timestamps where keyword appears |
@@ -422,6 +427,20 @@ Advanced:
   --parallel N          Number of parallel workers for batch processing (default: sequential)
   --retries N           Retry failed files up to N times with exponential backoff (default: 0;
                         incompatible with --parallel)
+
+Batch ETA:
+  Automatically shown for sequential batch jobs (no flag needed). After each file completes,
+  the next file's progress line includes:  [current/total] filename | ETA: Xm Ys
+  ETA is calculated from average time per file × remaining files.
+  Shown to stderr (surfaced to users via OpenClaw/Clawdbot output).
+
+Language Map (per-file language override):
+  --language-map MAP    Per-file language override for batch mode. Two forms:
+                          Inline: "interview*.mp3=en,lecture.wav=fr,keynote.wav=de"
+                          JSON file: "@/path/to/map.json"  (must be {pattern: lang} dict)
+                        Patterns support fnmatch globs on filename or stem.
+                        Priority: exact filename > exact stem > glob on filename > glob on stem > fallback.
+                        Files not matched fall back to --language (or auto-detect if not set).
 
 Transcript Search:
   --search TERM         Search the transcript for TERM and print matching segments with timestamps.
@@ -813,6 +832,11 @@ Useful when you want to expose transcription as a local API for other tools (Hom
 - **Quality control**: `--filter-hallucinations` strips music/applause markers and duplicates
 - **Parallel batch**: `--parallel N` for multi-threaded batch processing
 - **Subtitle burn-in**: `--burn-in` overlays subtitles directly into video via ffmpeg
+
+### v1.13.0 New Features
+- **CSV output** — `--format csv` produces a spreadsheet-ready file with a header row (`start_s,end_s,text`) using proper RFC 4180 quoting (commas/quotes in text handled correctly). Adds `speaker` column automatically when diarized.
+- **Language map** — `--language-map "pattern=lang,..."` overrides the transcription language per file in batch mode. Inline patterns support fnmatch globs (`interview*.mp3=en`). Also accepts `@path/to/map.json` for a JSON dict. Falls back to `--language` for unmatched files.
+- **Batch ETA** — sequential batch jobs now display `[N/total] filename | ETA: Xm Ys` before each file, computed from average time per completed file. Printed to stderr so OpenClaw/Clawdbot surfaces it in real time.
 
 ### v1.12.0 New Features
 - **Transcript search** — `--search TERM` finds all segments containing the term and prints them with timestamps; replaces normal output so results can be piped or saved with `-o`. `--search-fuzzy` enables approximate matching.
