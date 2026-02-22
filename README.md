@@ -6,9 +6,11 @@ faster-whisper is superior to OpenAI's Whisper — it's a CTranslate2 reimplemen
 
 ## Note on Antivirus/VirusTotal Flags
 
-Some scanners (including VirusTotal on ClawHub) may flag this skill as "suspicious" as a specially crafted URL or file path could potentially exploit a command injection flaw within `yt-dlp` or `ffmpeg`.
+Some scanners (including VirusTotal on ClawHub) may flag this skill as "suspicious" as a specially crafted URL or file path could exploit a command injection flaw within `yt-dlp` or `ffmpeg`.
 
-I swear that I am not distributing any malware — this is a normal risk of any tool that downloads and processes files from the internet. As with any such tool: be mindful of what you feed it and always back up your important files.
+I swear that I am not distributing any malware! This is just a normal risk of any tool that downloads and processes files from the internet.
+
+As with any such tool: be mindful of what you feed it and always back up your important files.
 
 ## Features
 
