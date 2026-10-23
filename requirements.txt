@@ -1,2 +1,6 @@
 # Core dependency — PyTorch installed separately by setup script (with CUDA if GPU detected)
 faster-whisper>=1.2.1
+# faster-whisper 1.2.1 passes metadata_errors, removed in PyAV 19.
+# Remove this bound once the minimum faster-whisper release includes
+# https://github.com/SYSTRAN/faster-whisper/pull/1495
+av>=11,<19

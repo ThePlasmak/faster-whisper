@@ -23,9 +23,9 @@ for arg in "$@"; do
                 exit 1
             fi
             if command -v uv &> /dev/null; then
-                uv pip install --python "$VENV_DIR/bin/python" --upgrade faster-whisper
+                uv pip install --python "$VENV_DIR/bin/python" --upgrade -r "$SCRIPT_DIR/requirements.txt"
             else
-                "$VENV_DIR/bin/pip" install --upgrade faster-whisper
+                "$VENV_DIR/bin/pip" install --upgrade -r "$SCRIPT_DIR/requirements.txt"
             fi
             echo "✅ faster-whisper updated"
             "$VENV_DIR/bin/python" -c "import faster_whisper; print(f'Version: {faster_whisper.__version__}')"
