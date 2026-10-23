@@ -1920,15 +1920,18 @@ def main():
         sys.exit(0)
 
     if "--update" in sys.argv:
-        _venv_python = _SCRIPT_DIR.parent / ".venv" / "bin" / "python"
+        _venv_python = _SCRIPT_DIR.parent / ".venv" / (
+            "Scripts/python.exe" if os.name == "nt" else "bin/python"
+        )
+        _requirements = _SCRIPT_DIR.parent / "requirements.txt"
         if shutil.which("uv"):
             subprocess.run(
-                ["uv", "pip", "install", "--python", str(_venv_python), "--upgrade", "faster-whisper"],
+                ["uv", "pip", "install", "--python", str(_venv_python), "--upgrade", "-r", str(_requirements)],
                 check=True,
             )
         else:
             subprocess.run(
-                [str(_venv_python), "-m", "pip", "install", "--upgrade", "faster-whisper"],
+                [str(_venv_python), "-m", "pip", "install", "--upgrade", "-r", str(_requirements)],
                 check=True,
             )
         try:

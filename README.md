@@ -437,6 +437,18 @@ See `SKILL.md` for full model list and recommendations.
 
 ## Troubleshooting
 
+### `metadata_errors` error during audio decoding
+
+faster-whisper 1.2.1 is incompatible with PyAV 19: transcription can fail with
+`TypeError: open() got an unexpected keyword argument 'metadata_errors'`.
+The requirements temporarily constrain PyAV below 19 until a faster-whisper
+release includes [the upstream fix](https://github.com/SYSTRAN/faster-whisper/pull/1495).
+Re-run setup, or use `--update`, to apply the requirements to an existing environment.
+The constraint can be removed when the minimum faster-whisper version includes that fix.
+
+To check actual audio decoding without downloading a model or using a GPU, run
+`python -m unittest discover -s tests` with the skill's virtual environment Python.
+
 ### CUDA Not Detected
 
 **Symptom:** Script says "CUDA not available — using CPU (this will be slow!)"
